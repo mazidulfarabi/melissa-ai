@@ -271,6 +271,19 @@ exports.handler = async function(event, context) {
             const errorText = await res.text();
             console.error(`${name} API Error:`, errorText);
 
+            // Extract reset time from headers if available
+            let resetTime = null;
+            const resetHeader = res.headers.get('X-RateLimit-Reset');
+            if (resetHeader) {
+              try {
+                // Convert Unix timestamp to Date
+                resetTime = new Date(parseInt(resetHeader));
+                console.log(`${name} API Reset time from header:`, resetTime);
+              } catch (e) {
+                console.log('Error parsing reset header:', e.message);
+              }
+            }
+
             // Check for rate limit errors
             const rawErrorText = errorText.toLowerCase();
             if (rawErrorText.includes('rate limit') || 
@@ -278,7 +291,12 @@ exports.handler = async function(event, context) {
                 rawErrorText.includes('free-models-per-day') ||
                 rawErrorText.includes('429')) {
               console.log(`Rate limit detected for ${name} key, trying next key...`);
-              lastError = { type: 'rate_limit', message: errorText, key: name };
+              lastError = { 
+                type: 'rate_limit', 
+                message: errorText, 
+                key: name,
+                resetTime: resetTime
+              };
               continue; // Try next key
             }
 
@@ -292,7 +310,23 @@ exports.handler = async function(event, context) {
                     errorMessage.includes('limit exceeded') ||
                     errorMessage.includes('429')) {
                   console.log(`Rate limit detected for ${name} key in parsed JSON, trying next key...`);
-                  lastError = { type: 'rate_limit', message: errorText, key: name };
+                  
+                  // Try to extract reset time from error metadata if available
+                  if (errorData.error.metadata && errorData.error.metadata.headers && errorData.error.metadata.headers['X-RateLimit-Reset']) {
+                    try {
+                      resetTime = new Date(parseInt(errorData.error.metadata.headers['X-RateLimit-Reset']));
+                      console.log(`${name} API Reset time from error metadata:`, resetTime);
+                    } catch (e) {
+                      console.log('Error parsing reset time from metadata:', e.message);
+                    }
+                  }
+                  
+                  lastError = { 
+                    type: 'rate_limit', 
+                    message: errorText, 
+                    key: name,
+                    resetTime: resetTime
+                  };
                   continue; // Try next key
                 }
               }
@@ -556,7 +590,8 @@ exports.handler = async function(event, context) {
           },
           body: JSON.stringify({ 
             error: "Daily limit exceeded",
-            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴",
+            resetTime: error.resetTime ? error.resetTime.toISOString() : null
           })
         };
       }

@@ -89,10 +89,12 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  animation: statusBlink 2s infinite;
 }
 
 .contact-status.offline {
   color: #FF9500;
+  animation: statusBlinkOffline 2s infinite;
 }
 
 .online-dot {
@@ -101,12 +103,12 @@ body {
   background-color: #34C759;
   border-radius: 50%;
   display: inline-block;
-  animation: pulse 2s infinite;
+  animation: dotBlink 2s infinite;
 }
 
 .online-dot.offline {
   background-color: #FF9500;
-  animation: none;
+  animation: dotBlinkOffline 2s infinite;
 }
 
 @keyframes pulse {
@@ -121,6 +123,46 @@ body {
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes statusBlink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes statusBlinkOffline {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes dotBlink {
+  0%, 50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  51%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes dotBlinkOffline {
+  0%, 50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  51%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
   }
 }
 

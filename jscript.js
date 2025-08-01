@@ -57,19 +57,35 @@ function chatBot() {
     this.resetRateLimit();
   };
 
+  // Force reset rate limit (for when API keys are changed)
+  this.forceResetRateLimit = function() {
+    console.log('Force resetting rate limit status...');
+    this.resetRateLimit();
+    // Also clear any stored reset time
+    sessionStorage.removeItem('melissa_reset_time');
+    console.log('Rate limit status cleared. Ready for new API keys.');
+  };
+
   // Rate limit management
-  this.setRateLimit = function() {
+  this.setRateLimit = function(resetTime = null) {
     isRateLimited = true;
     sessionStorage.setItem(RATE_LIMIT_KEY, 'true');
+    
+    // Store the reset time if provided
+    if (resetTime) {
+      sessionStorage.setItem('melissa_reset_time', resetTime);
+    }
+    
     this.updateStatus('offline');
-    this.showRateLimitAlert();
+    this.showRateLimitAlert(resetTime);
     this.disableInput();
-    this.scheduleAutoReset();
+    this.scheduleAutoReset(resetTime);
   };
 
   this.resetRateLimit = function() {
     isRateLimited = false;
     sessionStorage.removeItem(RATE_LIMIT_KEY);
+    sessionStorage.removeItem('melissa_reset_time');
     this.updateStatus('online');
     this.hideRateLimitAlert();
     this.enableInput();
@@ -79,14 +95,27 @@ function chatBot() {
     }
   };
 
-  this.scheduleAutoReset = function() {
-    // Set auto-reset after 24 hours (86400000 ms)
-    // In production, you might want to get the actual reset time from the API response
-    setTimeout(() => {
-      this.resetRateLimit();
-      // Trigger a custom event that the main script can listen to
-      $(document).trigger('melissaBackOnline');
-    }, 86400000); // 24 hours
+  this.scheduleAutoReset = function(resetTime = null) {
+    let resetDate;
+    
+    if (resetTime) {
+      // Use the actual reset time from API
+      resetDate = new Date(resetTime);
+    } else {
+      // Fallback to 24 hours from now
+      resetDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+    
+    const timeUntilReset = resetDate.getTime() - Date.now();
+    
+    // Only schedule if the reset time is in the future
+    if (timeUntilReset > 0) {
+      setTimeout(() => {
+        this.resetRateLimit();
+        // Trigger a custom event that the main script can listen to
+        $(document).trigger('melissaBackOnline');
+      }, timeUntilReset);
+    }
   };
 
   this.checkRateLimit = function() {
@@ -116,25 +145,45 @@ function chatBot() {
     }
   };
 
-  this.showRateLimitAlert = function() {
+  this.showRateLimitAlert = function(resetTime = null) {
     // Remove existing alert if any
     $('.rate-limit-alert').remove();
     
-    // Calculate reset time (24 hours from now)
-    const now = new Date();
-    const resetTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
-    
-    // Format the reset time
-    const resetTimeString = resetTime.toLocaleTimeString('en-US', {
-      hour12: true,
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-    
-    const resetDateString = resetTime.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    });
+    let resetTimeString, resetDateString;
+
+    if (resetTime) {
+      const now = new Date();
+      const resetDate = new Date(resetTime);
+      const timeDiff = resetDate.getTime() - now.getTime();
+
+      if (timeDiff < 0) {
+        resetTimeString = 'now';
+        resetDateString = '';
+      } else {
+        resetTimeString = resetDate.toLocaleTimeString('en-US', {
+          hour12: true,
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+        resetDateString = resetDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    } else {
+      // Fallback to 24 hours from now
+      const now = new Date();
+      const resetDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      resetTimeString = resetDate.toLocaleTimeString('en-US', {
+        hour12: true,
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      resetDateString = resetDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    }
     
     const alertHtml = `
       <div class="rate-limit-alert">
@@ -192,7 +241,7 @@ function chatBot() {
         // Check if it's a rate limit error
         if (response.status === 429 || 
             (data.response && data.response.includes("I'm feeling very tired"))) {
-          this.setRateLimit();
+          this.setRateLimit(data.resetTime); // Pass resetTime from API
           throw new Error(data.response || "I'm feeling very tired tonight, will talk tomorrow xoxo 😴");
         }
         // Return the actual error message from the backend
@@ -358,8 +407,8 @@ $(function () {
   resetBtn.on('click', function() {
     bot.clearHistory();
     chat.empty();
-    // Reset rate limit status
-    bot.resetRateLimit();
+    // Force reset rate limit status (for when API keys are changed)
+    bot.forceResetRateLimit();
     updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
     bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   });
@@ -380,4 +429,11 @@ $(function () {
       updateChat(msg.role === 'user' ? 'you' : 'other', msg.content);
     });
   }
+
+  // Global function for debugging - users can call this from console
+  window.resetMelissaRateLimit = function() {
+    console.log('Force resetting Melissa rate limit...');
+    bot.forceResetRateLimit();
+    console.log('Rate limit reset complete. You can now test with new API keys.');
+  };
 });
