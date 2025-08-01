@@ -459,17 +459,18 @@ exports.handler = async function(event, context) {
       // Check for rate limit errors in the catch block too
       let errorMessage = error.message.toLowerCase();
       
-      // Try to parse JSON error messages
+      // Try to parse JSON error messages - check if it's a JSON string
       try {
-        if (error.message.startsWith('{')) {
+        if (error.message.includes('{') && error.message.includes('}')) {
           const parsedError = JSON.parse(error.message);
           if (parsedError.error && parsedError.error.message) {
             errorMessage = parsedError.error.message.toLowerCase();
-            console.log('Parsed JSON error message:', errorMessage);
+            console.log('Parsed JSON error message in catch block:', errorMessage);
           }
         }
       } catch (parseError) {
         // Continue with original error message if parsing fails
+        console.log('Failed to parse error message as JSON:', parseError.message);
       }
       
       if (errorMessage.includes('rate limit') || 
@@ -544,7 +545,7 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "API Error",
-          response: `API request failed: ${error.message}`
+          response: "I'm having trouble connecting right now. Please try again in a moment."
         })
       };
     }
