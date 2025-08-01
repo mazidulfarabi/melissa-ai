@@ -114,7 +114,7 @@ exports.handler = async function(event, context) {
             messages: [
               { role: "user", content: "Hello" }
             ],
-            max_tokens: 50
+            max_tokens: 30
           })
         });
 
@@ -163,7 +163,7 @@ exports.handler = async function(event, context) {
           messages: [
             { role: "user", content: "Hello" }
           ],
-          max_tokens: 50
+          max_tokens: 30
         }),
         signal: controller.signal
       });
@@ -220,11 +220,11 @@ exports.handler = async function(event, context) {
           messages: [
             { 
               role: "system", 
-              content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
+              content: "You are Melissa, a cool, nerdy cyber-girl inspired by KillJoy from Valorant. Keep responses SHORT and CONCISE (1-2 sentences max). Be conversational, warm, and engaging. Don't give long explanations or multiple facts. Just respond naturally and briefly." 
             },
             { role: "user", content: message }
           ],
-          max_tokens: 150,
+          max_tokens: 80,
           temperature: 0.7
         }),
         signal: controller.signal
@@ -268,6 +268,26 @@ exports.handler = async function(event, context) {
         };
       }
 
+      // Get the response content and ensure it's complete
+      let responseContent = data.choices[0].message.content || "";
+      
+      // If response was truncated (indicated by finish_reason), add a note
+      if (data.choices[0].finish_reason === 'length') {
+        console.log('Response was truncated, adding completion note');
+        responseContent = responseContent.trim();
+        if (!responseContent.endsWith('.')) {
+          responseContent += '.';
+        }
+      }
+
+      // Ensure response is not too long for the chat interface
+      if (responseContent.length > 200) {
+        responseContent = responseContent.substring(0, 200).trim();
+        if (!responseContent.endsWith('.')) {
+          responseContent += '...';
+        }
+      }
+
       return {
         statusCode: 200,
         headers: {
@@ -275,7 +295,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          response: data.choices[0].message.content
+          response: responseContent
         })
       };
 
