@@ -3,7 +3,8 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+# Don't ignore package-lock.json in functions directory for Netlify builds
+# package-lock.json
 yarn.lock
 
 # Build outputs

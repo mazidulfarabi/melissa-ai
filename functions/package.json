@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Netlify functions for Melissa AI chatbot",
   "main": "chat.js",
+  "scripts": {
+    "build": "npm install",
+    "postinstall": "echo 'Dependencies installed successfully'"
+  },
   "dependencies": {
     "node-fetch": "^2.6.7"
   },
