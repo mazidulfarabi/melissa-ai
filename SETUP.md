@@ -1,7 +1,7 @@
 # Melissa AI - OpenRouter Integration Setup
 
 ## Overview
-This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic responses. The system is optimized for concise, natural conversations with robust error handling and debugging capabilities.
+This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic responses. The system features a modern chat interface with persistent history, smart error handling, and optimized performance.
 
 ## Setup Instructions
 
@@ -35,27 +35,34 @@ This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic resp
 1. Once deployed, visit your Netlify URL
 2. Try sending a message to Melissa
 3. You should receive intelligent, concise responses from the AI
+4. Test the reset button to clear chat history
+5. Verify audio notifications are working
 
 ## Features
-- **Modern AI**: Uses Mistral 7B via OpenRouter for reliable performance
-- **Conversational**: Maintains context and provides natural, concise responses
-- **Error Handling**: Graceful fallbacks with specific error messages
+- **Modern Chat UI**: Clean, iOS-style chat interface with typing indicators
+- **Intelligent AI**: Uses Mistral 7B via OpenRouter for reliable performance
+- **Chat History**: Persistent chat history using sessionStorage
+- **Smart Error Handling**: Rate limit detection with friendly "tired" messages
+- **Local Responses**: Common greetings handled locally to save API credits
+- **Audio Feedback**: MP3 notification sounds with Web Audio API fallback
+- **Reset Functionality**: Clear chat button to start fresh conversations
 - **CORS Support**: Properly configured for web deployment
-- **Typing Indicators**: Shows when Melissa is "thinking"
 - **Health Monitoring**: Built-in debugging endpoints
-- **Optimized Responses**: Concise responses that fit perfectly in chat interface
+- **Optimized Responses**: Concise responses (max 80 tokens) that fit perfectly
 
 ## File Structure
 ```
-├── index.html          # Main chat interface
-├── jscript.js          # Frontend JavaScript (updated for OpenRouter)
-├── stylesheet.css      # Styling
+├── index.html          # Main chat interface with modern UI
+├── jscript.js          # Frontend JavaScript with chat history
+├── stylesheet.css      # Modern chat interface styling
 ├── chat.mp3           # Message notification sound
+├── melissa.jpg        # Melissa's avatar image
 ├── functions/
 │   ├── chat.js         # Netlify function for API calls
 │   ├── package.json    # Function dependencies
 │   └── package-lock.json # Locked dependency versions
 ├── netlify.toml        # Netlify configuration
+├── _headers           # Netlify headers for audio files
 └── SETUP.md           # This file
 ```
 
@@ -85,6 +92,12 @@ fetch('/.netlify/functions/chat', {
 })
 .then(r => r.json())
 .then(console.log)
+
+// Check chat history
+console.log(JSON.parse(sessionStorage.getItem('melissa_chat_history')))
+
+// Clear chat history
+sessionStorage.removeItem('melissa_chat_history')
 ```
 
 ### Netlify Function Logs
@@ -115,17 +128,28 @@ Add these environment variables in Netlify for debugging:
    - Check Netlify function logs for detailed error information
    - Test the health check endpoint
 
-2. **Function deployment fails**
+2. **Audio not playing**
+   - Ensure `chat.mp3` is committed to the repository (not in .gitignore)
+   - Check browser console for audio loading errors
+   - Verify the file is accessible at the deployed URL
+   - Check that `*.mp3` is not ignored in `.gitignore`
+
+3. **Function deployment fails**
    - Ensure `package-lock.json` is committed to the repository
    - Check that the build command in `netlify.toml` is correct
    - Verify Node.js version compatibility (18+)
 
-3. **Rate limiting errors**
-   - Wait a few minutes before trying again
+4. **Rate limiting errors**
+   - The app now shows a friendly "tired" message instead of generic errors
+   - Wait until the next day for free tier reset
    - Consider upgrading your OpenRouter plan for higher limits
-   - Check if the model is temporarily unavailable
 
-4. **Responses too long or getting cut off**
+5. **Chat history not persisting**
+   - Check if sessionStorage is enabled in your browser
+   - Clear browser cache and try again
+   - Check browser console for storage errors
+
+6. **Responses too long or getting cut off**
    - The function is optimized for concise responses (max 80 tokens)
    - Responses are automatically trimmed to fit the chat interface
    - Check the system prompt for response length instructions
@@ -137,29 +161,41 @@ Add these environment variables in Netlify for debugging:
 3. **Verify API key**: Ensure `OPENROUTER_API_KEY` is set in Netlify environment variables
 4. **Enable test mode**: Add `TEST_MODE=true` to test without API calls
 5. **Check browser console**: Look for JavaScript errors or network issues
+6. **Test audio**: Check if `chat.mp3` is accessible at your deployed URL
 
 ### Error Messages Explained
 
+- **"I'm feeling very tired tonight, will talk tomorrow xoxo 😴"**: Rate limit exceeded, try again tomorrow
 - **"I'm having authentication issues"**: API key is invalid or missing
-- **"I'm getting too many requests"**: Rate limited, wait and try again
-- **"The AI service is temporarily unavailable"**: Model is down, try later
-- **"The request took too long"**: Request timed out, try again
+- **"The AI service is having issues"**: Model is down, try later
+- **"The AI is taking too long to respond"**: Request timed out, try again
 - **"I'm having network connectivity issues"**: Network problem, check connection
 
 ## Cost Considerations
 - OpenRouter offers free tier with limited requests
+- Local responses for common greetings save API credits
 - Mistral 7B is cost-effective and reliable
 - Monitor your usage in the OpenRouter dashboard
 - Consider upgrading if you expect high traffic
 
 ## Performance Optimization
 - Responses are limited to 80 tokens for faster processing
-- 15-second timeout prevents hanging requests
+- 25-second timeout prevents hanging requests
+- Local responses for common greetings reduce API calls
 - Concise responses reduce token usage and costs
 - Automatic response trimming ensures chat interface compatibility
+- Chat history limited to 50 messages to prevent memory issues
 
 ## Security Notes
 - API keys are stored securely in Netlify environment variables
 - Function includes proper CORS headers for web deployment
 - No sensitive data is logged or stored
-- Health check endpoint doesn't expose full API key 
+- Health check endpoint doesn't expose full API key
+- Chat history is stored locally in sessionStorage
+
+## Audio Configuration
+- `chat.mp3` provides notification sounds for new messages
+- Web Audio API fallback generates pleasant beep if MP3 fails
+- Audio volume set to 30% for pleasant experience
+- `_headers` file ensures proper content type for audio files
+- Graceful error handling for audio loading failures 
