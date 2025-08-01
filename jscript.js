@@ -120,9 +120,25 @@ function chatBot() {
     // Remove existing alert if any
     $('.rate-limit-alert').remove();
     
+    // Calculate reset time (24 hours from now)
+    const now = new Date();
+    const resetTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+    
+    // Format the reset time
+    const resetTimeString = resetTime.toLocaleTimeString('en-US', {
+      hour12: true,
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    
+    const resetDateString = resetTime.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+    
     const alertHtml = `
       <div class="rate-limit-alert">
-        Melissa set the wake-up alarm for <span class="timer">T-reset</span>
+        Melissa set the wake-up alarm for <span class="timer">${resetTimeString} ${resetDateString}</span>
       </div>
     `;
     
