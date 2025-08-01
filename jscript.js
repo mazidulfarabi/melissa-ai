@@ -5,6 +5,11 @@ const API_ENDPOINT = '/api/chat'; // This will be handled by Netlify Functions
 const CHAT_HISTORY_KEY = 'melissa_chat_history';
 const MAX_HISTORY_LENGTH = 50; // Maximum number of messages to store
 
+// Rate limit management
+const RATE_LIMIT_KEY = 'melissa_rate_limit';
+let isRateLimited = false;
+let rateLimitTimer = null;
+
 function chatBot() {
   this.input;
   this.chatHistory = [];
@@ -48,6 +53,108 @@ function chatBot() {
   this.clearHistory = function() {
     this.chatHistory = [];
     this.saveHistory();
+    // Reset rate limit when clearing history
+    this.resetRateLimit();
+  };
+
+  // Rate limit management
+  this.setRateLimit = function() {
+    isRateLimited = true;
+    sessionStorage.setItem(RATE_LIMIT_KEY, 'true');
+    this.updateStatus('offline');
+    this.showRateLimitAlert();
+    this.disableInput();
+    this.scheduleAutoReset();
+  };
+
+  this.resetRateLimit = function() {
+    isRateLimited = false;
+    sessionStorage.removeItem(RATE_LIMIT_KEY);
+    this.updateStatus('online');
+    this.hideRateLimitAlert();
+    this.enableInput();
+    if (rateLimitTimer) {
+      clearInterval(rateLimitTimer);
+      rateLimitTimer = null;
+    }
+  };
+
+  this.scheduleAutoReset = function() {
+    // Set auto-reset after 24 hours (86400000 ms)
+    // In production, you might want to get the actual reset time from the API response
+    setTimeout(() => {
+      this.resetRateLimit();
+      // Trigger a custom event that the main script can listen to
+      $(document).trigger('melissaBackOnline');
+    }, 86400000); // 24 hours
+  };
+
+  this.checkRateLimit = function() {
+    const rateLimited = sessionStorage.getItem(RATE_LIMIT_KEY);
+    if (rateLimited === 'true') {
+      isRateLimited = true;
+      this.updateStatus('offline');
+      this.disableInput();
+      return true;
+    }
+    return false;
+  };
+
+  this.updateStatus = function(status) {
+    const statusElement = $('.contact-status');
+    const dotElement = $('.online-dot');
+    const statusText = $('.status-text');
+    
+    if (status === 'offline') {
+      statusElement.addClass('offline');
+      dotElement.addClass('offline');
+      statusText.text('Offline');
+    } else {
+      statusElement.removeClass('offline');
+      dotElement.removeClass('offline');
+      statusText.text('Online');
+    }
+  };
+
+  this.showRateLimitAlert = function() {
+    // Remove existing alert if any
+    $('.rate-limit-alert').remove();
+    
+    const alertHtml = `
+      <div class="rate-limit-alert">
+        Melissa set the wake-up alarm for <span class="timer">T-reset</span>
+      </div>
+    `;
+    
+    $('body').append(alertHtml);
+    
+    // Show alert with animation
+    setTimeout(() => {
+      $('.rate-limit-alert').addClass('show');
+    }, 100);
+    
+    // Hide alert after 5 seconds
+    setTimeout(() => {
+      $('.rate-limit-alert').removeClass('show');
+      setTimeout(() => {
+        $('.rate-limit-alert').remove();
+      }, 300);
+    }, 5000);
+  };
+
+  this.hideRateLimitAlert = function() {
+    $('.rate-limit-alert').removeClass('show');
+    setTimeout(() => {
+      $('.rate-limit-alert').remove();
+    }, 300);
+  };
+
+  this.disableInput = function() {
+    $('.input-area').addClass('rate-limited');
+  };
+
+  this.enableInput = function() {
+    $('.input-area').removeClass('rate-limited');
   };
   
   this.respondTo = async function (input) {
@@ -66,6 +173,12 @@ function chatBot() {
       const data = await response.json();
       
       if (!response.ok) {
+        // Check if it's a rate limit error
+        if (response.status === 429 || 
+            (data.response && data.response.includes("I'm feeling very tired"))) {
+          this.setRateLimit();
+          throw new Error(data.response || "I'm feeling very tired tonight, will talk tomorrow xoxo 😴");
+        }
         // Return the actual error message from the backend
         throw new Error(data.response || "I'm having trouble connecting right now. Please try again in a moment.");
       }
@@ -98,6 +211,15 @@ $(function () {
   
   // Load chat history
   bot.loadHistory();
+  
+  // Check rate limit status on page load
+  bot.checkRateLimit();
+
+  // Listen for Melissa coming back online
+  $(document).on('melissaBackOnline', function() {
+    updateChat('other', "Good morning! I'm back online and ready to chat! 😊");
+    bot.addToHistory('assistant', "Good morning! I'm back online and ready to chat! 😊");
+  });
 
   var updateChat = function(party, message) {
     var time = new Date().toLocaleTimeString('en-US', { 
@@ -123,6 +245,11 @@ $(function () {
   var submitChat = async function () {
     var inputText = input.val().trim();
     if (!inputText) return;
+
+    // Check if rate limited
+    if (isRateLimited) {
+      return; // Don't send message if rate limited
+    }
 
     // Clear input
     input.val('');
@@ -155,6 +282,16 @@ $(function () {
       
       // Show the actual error message from the backend
       updateChat('other', error.message);
+      
+      // If it's a rate limit error, don't show it again
+      if (error.message && error.message.includes("I'm feeling very tired")) {
+        // The rate limit is already handled by setRateLimit()
+        // Don't add this message to history to prevent showing it again
+        return;
+      }
+      
+      // Add other error messages to history
+      bot.addToHistory('assistant', error.message);
     }
   };
 
@@ -205,6 +342,8 @@ $(function () {
   resetBtn.on('click', function() {
     bot.clearHistory();
     chat.empty();
+    // Reset rate limit status
+    bot.resetRateLimit();
     updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
     bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   });
