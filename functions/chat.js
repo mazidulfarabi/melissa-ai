@@ -99,6 +99,51 @@ exports.handler = async function(event, context) {
       };
     }
 
+    // Debug mode - return detailed error information
+    if (process.env.DEBUG_MODE === 'true') {
+      console.log('Running in debug mode');
+      try {
+        const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.0-flash-exp:free",
+            messages: [
+              { role: "user", content: "Hello" }
+            ],
+            max_tokens: 50
+          })
+        });
+
+        const errorText = await testRes.text();
+        
+        return {
+          statusCode: 200,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            response: `DEBUG: API Status: ${testRes.status}, Response: ${errorText.substring(0, 200)}`
+          })
+        };
+      } catch (debugError) {
+        return {
+          statusCode: 200,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            response: `DEBUG: Error: ${debugError.message}`
+          })
+        };
+      }
+    }
+
     // Simple request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
@@ -114,7 +159,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3-haiku:free",
+          model: "google/gemini-2.0-flash-exp:free",
           messages: [
             { role: "user", content: "Hello" }
           ],
@@ -171,7 +216,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3-haiku:free",
+          model: "google/gemini-2.0-flash-exp:free",
           messages: [
             { 
               role: "system", 
