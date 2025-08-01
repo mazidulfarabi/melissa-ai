@@ -175,6 +175,26 @@ exports.handler = async function(event, context) {
         const errorText = await testRes.text();
         console.error('Test API Error:', errorText);
         
+        // Check for specific rate limit error
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error && errorData.error.message && errorData.error.message.includes('free-models-per-day')) {
+            return {
+              statusCode: 429,
+              headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ 
+                error: "Daily limit exceeded",
+                response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+              })
+            };
+          }
+        } catch (parseError) {
+          // Continue with normal error handling if JSON parsing fails
+        }
+        
         return {
           statusCode: 500,
           headers: {
@@ -242,6 +262,26 @@ exports.handler = async function(event, context) {
       if (!res.ok) {
         const errorText = await res.text();
         console.error('Actual API Error:', errorText);
+        
+        // Check for specific rate limit error
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error && errorData.error.message && errorData.error.message.includes('free-models-per-day')) {
+            return {
+              statusCode: 429,
+              headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ 
+                error: "Daily limit exceeded",
+                response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+              })
+            };
+          }
+        } catch (parseError) {
+          // Continue with normal error handling if JSON parsing fails
+        }
         
         return {
           statusCode: 500,
