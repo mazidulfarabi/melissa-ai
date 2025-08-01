@@ -85,6 +85,161 @@ exports.handler = async function(event, context) {
     console.log('User message:', message);
     console.log('Chat history length:', history ? history.length : 0);
 
+    // Optimized local response system for common greetings and simple questions so resources are not wasted
+    const localResponses = {
+      // Greetings
+      'hello': [
+        "Hey there! 😊 How's it going?",
+        "Hi! Nice to see you! 👋",
+        "Hello! How are you doing today? 😄"
+      ],
+      'hi': [
+        "Hey! What's up? 😊",
+        "Hi there! How's your day going? 👋",
+        "Hello! Nice to chat with you! 😄"
+      ],
+      'hey': [
+        "Hey! How are you? 😊",
+        "Hi there! What's new? 👋",
+        "Hey! Great to see you! 😄"
+      ],
+      'good morning': [
+        "Good morning! Hope you're having a great start to your day! ☀️",
+        "Morning! How's your day going so far? 🌅",
+        "Good morning! Ready to chat? 😊"
+      ],
+      'good afternoon': [
+        "Good afternoon! Hope your day is going well! 🌞",
+        "Afternoon! How's everything? 😊",
+        "Good afternoon! Nice to see you! 👋"
+      ],
+      'good evening': [
+        "Good evening! How was your day? 🌙",
+        "Evening! Hope you had a great day! 😊",
+        "Good evening! Ready to chat? 👋"
+      ],
+      'good night': [
+        "Good night! Sweet dreams! 😴",
+        "Night! Sleep well! 🌙",
+        "Good night! See you tomorrow! 😊"
+      ],
+      
+      // How are you variations
+      'how are you': [
+        "I'm doing great! Thanks for asking! How about you? 😊",
+        "I'm awesome! How are you doing? 😄",
+        "I'm feeling good! How's your day going? 😊"
+      ],
+      'how r u': [
+        "I'm good! How about you? 😊",
+        "I'm great! How are you doing? 😄",
+        "I'm doing well! How's it going? 😊"
+      ],
+      'how are u': [
+        "I'm good! How about you? 😊",
+        "I'm great! How are you doing? 😄",
+        "I'm doing well! How's it going? 😊"
+      ],
+      
+      // Name questions
+      'what is your name': [
+        "I'm Melissa! Nice to meet you! 😊",
+        "My name is Melissa! What's yours? 👋",
+        "I'm Melissa! How about you? 😄"
+      ],
+      'whats your name': [
+        "I'm Melissa! Nice to meet you! 😊",
+        "My name is Melissa! What's yours? 👋",
+        "I'm Melissa! How about you? 😄"
+      ],
+      'what\'s your name': [
+        "I'm Melissa! Nice to meet you! 😊",
+        "My name is Melissa! What's yours? 👋",
+        "I'm Melissa! How about you? 😄"
+      ],
+      'who are you': [
+        "I'm Melissa, your AI friend! 😊",
+        "I'm Melissa! Nice to meet you! 👋",
+        "I'm Melissa, ready to chat! 😄"
+      ],
+      
+      // Simple questions
+      'what time is it': [
+        `It's ${new Date().toLocaleTimeString('en-US', { hour12: true, hour: "numeric", minute: "numeric" })}! ⏰`,
+        `The time is ${new Date().toLocaleTimeString('en-US', { hour12: true, hour: "numeric", minute: "numeric" })}! 🕐`,
+        `Right now it's ${new Date().toLocaleTimeString('en-US', { hour12: true, hour: "numeric", minute: "numeric" })}! ⏰`
+      ],
+      'what day is it': [
+        `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}! 📅`,
+        `It's ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}! 📆`,
+        `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}! 📅`
+      ],
+      
+      // Weather (simple response)
+      'how is the weather': [
+        "I can't check the weather right now, but I hope it's nice where you are! 🌤️",
+        "I don't have weather access, but I hope you're having good weather! ☀️",
+        "I can't see the weather, but I hope it's beautiful outside! 🌈"
+      ],
+      
+      // Goodbye
+      'bye': [
+        "Bye! It was nice chatting with you! 👋",
+        "Goodbye! Hope to see you again soon! 😊",
+        "Bye! Take care! 👋"
+      ],
+      'goodbye': [
+        "Goodbye! It was great talking to you! 👋",
+        "See you later! Have a great day! 😊",
+        "Goodbye! Come back soon! 👋"
+      ],
+      'see you': [
+        "See you! It was fun chatting! 👋",
+        "See you later! Take care! 😊",
+        "See you! Come back anytime! 👋"
+      ]
+    };
+
+    // Function to get a random response from an array
+    const getRandomResponse = (responses) => {
+      return responses[Math.floor(Math.random() * responses.length)];
+    };
+
+    // Check for local responses
+    const normalizedMessage = message.toLowerCase().trim();
+    
+    // Check exact matches first
+    if (localResponses[normalizedMessage]) {
+      console.log('Using local response for:', normalizedMessage);
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          response: getRandomResponse(localResponses[normalizedMessage])
+        })
+      };
+    }
+    
+    // Check for partial matches (e.g., "hello there" should match "hello")
+    for (const [key, responses] of Object.entries(localResponses)) {
+      if (normalizedMessage.includes(key) && key.length > 2) { // Only match words longer than 2 chars
+        console.log('Using local response for partial match:', key);
+        return {
+          statusCode: 200,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            response: getRandomResponse(responses)
+          })
+        };
+      }
+    }
+
     // Test mode - return simple response without API call
     if (process.env.TEST_MODE === 'true') {
       console.log('Running in test mode - skipping API call');
