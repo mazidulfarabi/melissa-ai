@@ -15,7 +15,6 @@ function chatBot() {
       const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
       if (saved) {
         this.chatHistory = JSON.parse(saved);
-        console.log('Loaded chat history:', this.chatHistory.length, 'messages');
       }
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -38,33 +37,29 @@ function chatBot() {
   
   // Add message to history
   this.addToHistory = function(role, content) {
-    this.chatHistory.push({
-      role: role,
-      content: content,
-      timestamp: new Date().toISOString()
-    });
+    this.chatHistory.push({ role, content });
+    if (this.chatHistory.length > MAX_HISTORY_LENGTH) {
+      this.chatHistory = this.chatHistory.slice(-MAX_HISTORY_LENGTH);
+    }
     this.saveHistory();
   };
   
   // Clear chat history
   this.clearHistory = function() {
     this.chatHistory = [];
-    sessionStorage.removeItem(CHAT_HISTORY_KEY);
-    console.log('Chat history cleared');
+    this.saveHistory();
   };
   
   this.respondTo = async function (input) {
-    this.input = input.toLowerCase();
-    
     try {
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: input,
-          history: this.chatHistory // Send chat history for context
+        body: JSON.stringify({ 
+          message: input, 
+          history: this.chatHistory 
         })
       });
 
@@ -73,11 +68,10 @@ function chatBot() {
       }
 
       const data = await response.json();
-      return data.response || "I'm sorry, I couldn't process that request.";
-      
+      return data.response || "I'm sorry, I didn't get that.";
     } catch (error) {
       console.error('Error calling API:', error);
-      return "I'm having trouble connecting right now. Please try again in a moment.";
+      throw error;
     }
   };
 
@@ -87,106 +81,83 @@ function chatBot() {
 }
 
 $(function () {
-  var you = 'You';
-  var robot = 'Melissa';
-
-  var delayStart = 400;
-  var delayEnd = 800;
-
   var bot = new chatBot();
   var chat = $('.chat');
-  var waiting = 0;
-  $('.busy').text(robot + ' is typing...');
-
-  // Load chat history on startup
+  var input = $('.input-field');
+  var sendBtn = $('.send-btn');
+  var busy = $('.busy');
+  var resetBtn = $('.reset-btn');
+  
+  // Load chat history
   bot.loadHistory();
 
-  var submitChat = async function () {
-    var input = $('.input textarea').val();
-    if (input == '') return;
-
-    $('.input textarea').val('');
-    updateChat(you, input);
+  var updateChat = function(party, message) {
+    var time = new Date().toLocaleTimeString('en-US', { 
+      hour12: true, 
+      hour: "numeric", 
+      minute: "numeric" 
+    });
     
-    // Add user message to history
-    bot.addToHistory('user', input);
+    var messageHtml = `
+      <div class="${party}">
+        <div class="party">${party === 'you' ? 'You' : 'Melissa'}</div>
+        <div class="msg-bubble">
+          <div class="text">${message}</div>
+          <div class="time">${time}</div>
+        </div>
+      </div>
+    `;
+    
+    chat.append(messageHtml);
+    chat.scrollTop(chat[0].scrollHeight);
+  };
 
-    $('.busy').css('display', 'block');
-    waiting++;
+  var submitChat = async function () {
+    var inputText = input.val().trim();
+    if (!inputText) return;
 
+    // Clear input
+    input.val('');
+    
+    // Update UI with user message
+    updateChat('you', inputText);
+    bot.addToHistory('user', inputText);
+    
+    // Show busy indicator
+    busy.show();
+    
     try {
-      var reply = await bot.respondTo(input);
+      // Get bot response
+      var reply = await bot.respondTo(inputText);
       
-      setTimeout(function () {
-        if (typeof reply === 'string') {
-          updateChat(robot, reply);
-          // Add bot response to history
-          bot.addToHistory('assistant', reply);
-          playNotificationSound();
-        } else {
-          for (var r in reply) {
-            updateChat(robot, reply[r]);
-            // Add bot response to history
-            bot.addToHistory('assistant', reply[r]);
-            playNotificationSound();
-          }
-        }
-        if (--waiting == 0) $('.busy').css('display', 'none');
-      }, Math.floor(Math.random() * (delayEnd - delayStart) + delayStart));
+      // Update UI with bot response
+      updateChat('other', reply);
+      bot.addToHistory('assistant', reply);
+      
+      // Play notification sound
+      playNotificationSound();
       
     } catch (error) {
       console.error('Error in submitChat:', error);
-      setTimeout(function () {
-        updateChat(robot, "I'm sorry, something went wrong. Please try again.");
-        if (--waiting == 0) $('.busy').css('display', 'none');
-      }, delayStart);
+      updateChat('other', "I'm having trouble connecting right now. Please try again in a moment.");
+    } finally {
+      busy.hide();
     }
   };
 
-  var updateChat = function (party, text) {
-    var style = 'you';
-    if (party != you) {
-      style = 'other';
-    }
-
-    var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
-    line.find('.party').addClass(style).text(party + ':');
-    line.find('.text').text(text);
-    line.find('.time').text(new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"}));
-    
-    chat.append(line);
-    chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
-  };
-
-  // Audio notification function with error handling
   var playNotificationSound = function() {
     try {
-      // Try to load the chat.mp3 file first
       var audio = new Audio('chat.mp3');
-      audio.volume = 0.3; // Reduce volume to 30%
-      
-      // Handle audio loading errors
-      audio.addEventListener('error', function(e) {
-        console.log('Audio file not available, trying fallback beep sound');
-        // Fallback to a simple beep sound using Web Audio API
+      audio.play().catch(function(error) {
+        console.log('Audio play failed, using fallback beep:', error);
         playFallbackBeep();
       });
-      
-      // Play audio with error handling
-      var playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(function(error) {
-          console.log('Audio playback failed, trying fallback beep sound:', error);
-          playFallbackBeep();
-        });
-      }
     } catch (error) {
-      console.log('Audio notification failed, trying fallback beep sound:', error);
+      console.log('Audio creation failed, using fallback beep:', error);
       playFallbackBeep();
     }
   };
 
-  // Fallback beep sound using Web Audio API
   var playFallbackBeep = function() {
     try {
       var audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -196,68 +167,52 @@ $(function () {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      oscillator.frequency.value = 800; // 800 Hz beep
+      oscillator.frequency.value = 800;
       oscillator.type = 'sine';
       
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Low volume
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
       
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.1);
     } catch (error) {
-      console.log('Fallback beep sound failed:', error);
+      console.log('Fallback beep failed:', error);
     }
   };
 
-  $('.input button').bind('click', submitChat);
-  
-  // Handle Enter key press
-  $('.input textarea').bind('keypress', function(e) {
-    if (e.which == 13 && !e.shiftKey) {
+  // Handle send button click
+  sendBtn.on('click', submitChat);
+
+  // Handle enter key press
+  input.on('keypress', function(e) {
+    if (e.which === 13 && !e.shiftKey) {
       e.preventDefault();
       submitChat();
     }
   });
 
-  // Add clear chat button functionality (optional)
-  // You can add a button to the HTML and bind it like this:
-  // $('.clear-chat').bind('click', function() {
-  //   bot.clearHistory();
-  //   chat.empty();
-  //   updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
-  // });
-
-  // Clear chat button functionality
-  $('.clear-chat-btn').bind('click', function() {
-    if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
-      bot.clearHistory();
-      chat.empty();
-      updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
-      // Add initial greeting to history
-      bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
-    }
+  // Handle reset button click
+  resetBtn.on('click', function() {
+    bot.clearHistory();
+    chat.empty();
+    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
+    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   });
 
-  // Initial greeting (only if no history exists)
+  // Auto-resize textarea
+  input.on('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
+
+  // Initialize chat
   if (bot.chatHistory.length === 0) {
-    updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
-    // Add initial greeting to history
+    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
     bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   } else {
     // Restore chat history to UI
-    console.log('Restoring chat history to UI...');
     bot.chatHistory.forEach(function(msg) {
-      var party = msg.role === 'user' ? you : robot;
-      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"});
-      
-      var style = msg.role === 'user' ? 'you' : 'other';
-      var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
-      line.find('.party').addClass(style).text(party + ':');
-      line.find('.text').text(msg.content);
-      line.find('.time').text(time);
-      
-      chat.append(line);
+      updateChat(msg.role === 'user' ? 'you' : 'other', msg.content);
     });
-    chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
   }
 });

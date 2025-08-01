@@ -17,14 +17,31 @@
 <body>
 
 	<div class="container">
-		<div class="clear-chat-container">
-		  <button type="button" class="clear-chat-btn">Clear Chat</button>
+		<!-- Header Bar -->
+		<div class="header">
+			<div class="header-left">
+				<div class="back-arrow">←</div>
+				<div class="contact-info">
+					<img src="melissa.jpg" alt="Melissa" class="avatar">
+					<div class="contact-details">
+						<div class="contact-name">Melissa</div>
+						<div class="contact-status">Online</div>
+					</div>
+				</div>
+			</div>
+			<div class="header-right">
+				<button class="reset-btn" title="Clear Chat">🔄</button>
+			</div>
 		</div>
+
+		<!-- Chat Area -->
 		<div class="chat"></div>
 		<div class="busy"></div>
-		<div class="input msger-inputarea">
-		  <textarea class="msger-input" type="text" placeholder="Message" rows="1" autofocus></textarea>
-		  <button type="submit" class="msger-send-btn">Send</button>
+
+		<!-- Input Area -->
+		<div class="input-area">
+			<textarea class="input-field" placeholder="Message" rows="1" autofocus></textarea>
+			<button type="submit" class="send-btn">Send</button>
 		</div>
 	</div>
 

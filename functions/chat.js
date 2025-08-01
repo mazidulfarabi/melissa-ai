@@ -459,12 +459,42 @@ exports.handler = async function(event, context) {
       console.error('API Error:', error.message);
       
       // Check for rate limit errors in the catch block too
-      const errorMessage = error.message.toLowerCase();
+      let errorMessage = error.message.toLowerCase();
+      
+      // Try to parse JSON error messages
+      try {
+        if (error.message.startsWith('{')) {
+          const parsedError = JSON.parse(error.message);
+          if (parsedError.error && parsedError.error.message) {
+            errorMessage = parsedError.error.message.toLowerCase();
+            console.log('Parsed JSON error message:', errorMessage);
+          }
+        }
+      } catch (parseError) {
+        // Continue with original error message if parsing fails
+      }
+      
       if (errorMessage.includes('rate limit') || 
           errorMessage.includes('limit exceeded') || 
           errorMessage.includes('free-models-per-day') ||
           errorMessage.includes('429')) {
         console.log('Rate limit detected in catch block, returning tired message');
+        return {
+          statusCode: 429,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Daily limit exceeded",
+            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+          })
+        };
+      }
+      
+      // Check if the error object has additional properties that might contain rate limit info
+      if (error.response && error.response.status === 429) {
+        console.log('Rate limit detected via response status, returning tired message');
         return {
           statusCode: 429,
           headers: {
@@ -492,6 +522,22 @@ exports.handler = async function(event, context) {
         };
       }
       
+      // If we get here, it's an unknown error, but let's check if it's a network error that might be rate limit related
+      if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
+        console.log('Network error detected, might be rate limit related');
+        return {
+          statusCode: 429,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Daily limit exceeded",
+            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+          })
+        };
+      }
+      
       return {
         statusCode: 500,
         headers: {
@@ -507,6 +553,40 @@ exports.handler = async function(event, context) {
 
   } catch (error) {
     console.error('Unexpected error:', error.message, error.stack);
+    
+    // Check for rate limit errors in the outer catch block too
+    let errorMessage = error.message.toLowerCase();
+    
+    // Try to parse JSON error messages
+    try {
+      if (error.message.startsWith('{')) {
+        const parsedError = JSON.parse(error.message);
+        if (parsedError.error && parsedError.error.message) {
+          errorMessage = parsedError.error.message.toLowerCase();
+          console.log('Parsed JSON error message in outer catch:', errorMessage);
+        }
+      }
+    } catch (parseError) {
+      // Continue with original error message if parsing fails
+    }
+    
+    if (errorMessage.includes('rate limit') || 
+        errorMessage.includes('limit exceeded') || 
+        errorMessage.includes('free-models-per-day') ||
+        errorMessage.includes('429')) {
+      console.log('Rate limit detected in outer catch block, returning tired message');
+      return {
+        statusCode: 429,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          error: "Daily limit exceeded",
+          response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+        })
+      };
+    }
     
     return {
       statusCode: 500,
