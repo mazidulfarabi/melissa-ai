@@ -160,8 +160,8 @@ $(function () {
 
   var playNotificationSound = function() {
     try {
-      console.log('Attempting to play assets/chat.mp3...');
-      var audio = new Audio('assets/chat.mp3');
+      console.log('Attempting to play chat.mp3...');
+      var audio = new Audio('chat.mp3');
       audio.volume = 0.3; // Set volume to 30%
       
       // Add event listeners for debugging
@@ -175,6 +175,8 @@ $(function () {
       
       audio.addEventListener('error', function(e) {
         console.log('Audio error:', e);
+        console.log('Audio error details:', e.target.error);
+        console.log('Audio src:', e.target.src);
       });
       
       // Simple play with error handling
