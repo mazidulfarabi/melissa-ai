@@ -149,85 +149,8 @@ exports.handler = async function(event, context) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
 
-    // Try a simple test first
-    console.log('Making test API request...');
-    
-    try {
-      const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct:free",
-          messages: [
-            { role: "user", content: "Hi" }
-          ],
-          max_tokens: 20
-        }),
-        signal: controller.signal
-      });
-
-      console.log('Test API Response Status:', testRes.status);
-      
-      if (!testRes.ok) {
-        const errorText = await testRes.text();
-        console.error('Test API Error:', errorText);
-        
-        // Check for specific rate limit error
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error && errorData.error.message && errorData.error.message.includes('free-models-per-day')) {
-            return {
-              statusCode: 429,
-              headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ 
-                error: "Daily limit exceeded",
-                response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-              })
-            };
-          }
-        } catch (parseError) {
-          // Continue with normal error handling if JSON parsing fails
-        }
-        
-        return {
-          statusCode: 500,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ 
-            error: `API Test Failed: ${testRes.status}`,
-            response: `API test failed with status ${testRes.status}. Please check the logs for details.`
-          })
-        };
-      }
-
-      const testData = await testRes.json();
-      console.log('Test API Success:', JSON.stringify(testData).substring(0, 100) + '...');
-
-    } catch (testError) {
-      console.error('Test API Error:', testError.message);
-      return {
-        statusCode: 500,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          error: "API Test Failed",
-          response: `API test failed: ${testError.message}`
-        })
-      };
-    }
-
-    // If test passes, try the actual request
-    console.log('Test passed, making actual request...');
+    // Make the actual request directly
+    console.log('Making API request...');
     
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -257,11 +180,11 @@ exports.handler = async function(event, context) {
       });
 
       clearTimeout(timeoutId);
-      console.log('Actual API Response Status:', res.status);
+      console.log('API Response Status:', res.status);
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Actual API Error:', errorText);
+        console.error('API Error:', errorText);
         
         // Check for specific rate limit error
         try {
@@ -297,7 +220,7 @@ exports.handler = async function(event, context) {
       }
 
       const data = await res.json();
-      console.log('Actual API Success:', JSON.stringify(data).substring(0, 200) + '...');
+      console.log('API Success:', JSON.stringify(data).substring(0, 200) + '...');
 
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         console.error('Invalid API response format:', JSON.stringify(data));
@@ -347,7 +270,7 @@ exports.handler = async function(event, context) {
 
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error('Actual API Error:', error.message);
+      console.error('API Error:', error.message);
       
       if (error.name === 'AbortError') {
         return {
