@@ -94,94 +94,152 @@ $(function () {
   var delayEnd = 800;
 
   var bot = new chatBot();
-  var chat = $('.chat');
+  var chat = $('#chatMessages');
+  var typingIndicator = $('#typingIndicator');
   var waiting = 0;
-  $('.busy').text(robot + ' is typing...');
 
   // Load chat history on startup
   bot.loadHistory();
 
   var submitChat = async function () {
-    var input = $('.input textarea').val();
+    var input = $('.message-input').val();
     if (input == '') return;
 
-    $('.input textarea').val('');
-    updateChat(you, input);
+    $('.message-input').val('');
+    updateChat('user', input);
     
     // Add user message to history
     bot.addToHistory('user', input);
 
-    $('.busy').css('display', 'block');
+    // Show typing indicator
+    typingIndicator.show();
     waiting++;
 
     try {
       var reply = await bot.respondTo(input);
       
       setTimeout(function () {
+        // Hide typing indicator
+        typingIndicator.hide();
+        
         if (typeof reply === 'string') {
-          updateChat(robot, reply);
+          updateChat('bot', reply);
           // Add bot response to history
           bot.addToHistory('assistant', reply);
-          new Audio('chat.mp3').play();
+          playNotificationSound();
         } else {
           for (var r in reply) {
-            updateChat(robot, reply[r]);
+            updateChat('bot', reply[r]);
             // Add bot response to history
             bot.addToHistory('assistant', reply[r]);
-            new Audio('chat.mp3').play();
+            playNotificationSound();
           }
         }
-        if (--waiting == 0) $('.busy').css('display', 'none');
+        if (--waiting == 0) typingIndicator.hide();
       }, Math.floor(Math.random() * (delayEnd - delayStart) + delayStart));
       
     } catch (error) {
       console.error('Error in submitChat:', error);
       setTimeout(function () {
-        updateChat(robot, "I'm sorry, something went wrong. Please try again.");
-        if (--waiting == 0) $('.busy').css('display', 'none');
+        typingIndicator.hide();
+        updateChat('bot', "I'm sorry, something went wrong. Please try again.");
+        if (--waiting == 0) typingIndicator.hide();
       }, delayStart);
     }
   };
 
   var updateChat = function (party, text) {
-    var style = 'you';
-    if (party != you) {
-      style = 'other';
-    }
+    var messageClass = party === 'user' ? 'user' : 'bot';
+    var time = new Date().toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: "numeric", 
+      minute: "numeric"
+    });
 
-    var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
-    line.find('.party').addClass(style).text(party + ':');
-    line.find('.text').text(text);
-    line.find('.time').text(new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"}));
+    var messageHtml = `
+      <div class="message ${messageClass}">
+        <div class="message-bubble">${text}</div>
+        <div class="message-time">${time}</div>
+      </div>
+    `;
     
-    chat.append(line);
+    chat.append(messageHtml);
     chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
   };
 
-  $('.input button').bind('click', submitChat);
+  // Audio notification function with error handling
+  var playNotificationSound = function() {
+    try {
+      // Try to load the chat.mp3 file first
+      var audio = new Audio('chat.mp3');
+      audio.volume = 0.3; // Reduce volume to 30%
+      
+      // Handle audio loading errors
+      audio.addEventListener('error', function(e) {
+        console.log('Audio file not available, trying fallback beep sound');
+        // Fallback to a simple beep sound using Web Audio API
+        playFallbackBeep();
+      });
+      
+      // Play audio with error handling
+      var playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(function(error) {
+          console.log('Audio playback failed, trying fallback beep sound:', error);
+          playFallbackBeep();
+        });
+      }
+    } catch (error) {
+      console.log('Audio notification failed, trying fallback beep sound:', error);
+      playFallbackBeep();
+    }
+  };
+
+  // Fallback beep sound using Web Audio API
+  var playFallbackBeep = function() {
+    try {
+      var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      var oscillator = audioContext.createOscillator();
+      var gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // 800 Hz beep
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Low volume
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.log('Fallback beep sound failed:', error);
+    }
+  };
+
+  $('.send-button').bind('click', submitChat);
   
   // Handle Enter key press
-  $('.input textarea').bind('keypress', function(e) {
+  $('.message-input').bind('keypress', function(e) {
     if (e.which == 13 && !e.shiftKey) {
       e.preventDefault();
       submitChat();
     }
   });
 
-  // Add clear chat button functionality (optional)
-  // You can add a button to the HTML and bind it like this:
-  // $('.clear-chat').bind('click', function() {
-  //   bot.clearHistory();
-  //   chat.empty();
-  //   updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
-  // });
+  // Auto-resize textarea
+  $('.message-input').on('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
 
   // Clear chat button functionality
   $('.clear-chat-btn').bind('click', function() {
     if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
       bot.clearHistory();
       chat.empty();
-      updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+      updateChat('bot', "Hi there, I'm Melissa! How can I help you today?");
       // Add initial greeting to history
       bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
     }
@@ -189,23 +247,28 @@ $(function () {
 
   // Initial greeting (only if no history exists)
   if (bot.chatHistory.length === 0) {
-    updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+    updateChat('bot', "Hi there, I'm Melissa! How can I help you today?");
     // Add initial greeting to history
     bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   } else {
     // Restore chat history to UI
     console.log('Restoring chat history to UI...');
     bot.chatHistory.forEach(function(msg) {
-      var party = msg.role === 'user' ? you : robot;
-      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"});
+      var party = msg.role === 'user' ? 'user' : 'bot';
+      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: "numeric", 
+        minute: "numeric"
+      });
       
-      var style = msg.role === 'user' ? 'you' : 'other';
-      var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
-      line.find('.party').addClass(style).text(party + ':');
-      line.find('.text').text(msg.content);
-      line.find('.time').text(time);
+      var messageHtml = `
+        <div class="message ${party}">
+          <div class="message-bubble">${msg.content}</div>
+          <div class="message-time">${time}</div>
+        </div>
+      `;
       
-      chat.append(line);
+      chat.append(messageHtml);
     });
     chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
   }
