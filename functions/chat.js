@@ -25,7 +25,8 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         status: "healthy",
         timestamp: new Date().toISOString(),
-        hasApiKey: !!process.env.OPENROUTER_API_KEY
+        hasApiKey: !!process.env.OPENROUTER_API_KEY,
+        apiKeyLength: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.length : 0
       })
     };
   }
@@ -60,99 +61,88 @@ exports.handler = async function(event, context) {
       };
     }
 
-    console.log('Making API request to OpenRouter...');
-    console.log('Request payload:', JSON.stringify({
-      model: "anthropic/claude-3-haiku:free",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
-        },
-        { role: "user", content: message }
-      ],
-      max_tokens: 150,
-      temperature: 0.7
-    }));
-    
-    // Add timeout to the fetch request
+    console.log('Starting API request...');
+    console.log('API Key present:', !!process.env.OPENROUTER_API_KEY);
+    console.log('API Key length:', process.env.OPENROUTER_API_KEY.length);
+    console.log('User message:', message);
+
+    // Simple request with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-    // Try primary model first, then fallback
-    const models = ["anthropic/claude-3-haiku:free", "google/gemini-2.0-flash-exp:free", "meta-llama/llama-3.1-8b-instruct:free"];
-    let lastError = null;
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "anthropic/claude-3-haiku:free",
+          messages: [
+            { 
+              role: "system", 
+              content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
+            },
+            { role: "user", content: message }
+          ],
+          max_tokens: 150,
+          temperature: 0.7
+        }),
+        signal: controller.signal
+      });
 
-    for (const model of models) {
-      try {
-        console.log(`Trying model: ${model}`);
+      clearTimeout(timeoutId);
+      console.log('API Response Status:', res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('API Error Response:', errorText);
         
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { 
-                role: "system", 
-                content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
-              },
-              { role: "user", content: message }
-            ],
-            max_tokens: 150,
-            temperature: 0.7
-          }),
-          signal: controller.signal
-        });
-
-        console.log(`API response status for ${model}: ${res.status}`);
-
-        if (res.ok) {
-          clearTimeout(timeoutId);
-          const data = await res.json();
-          console.log('API response received successfully');
-
-          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.error('Unexpected API response format:', JSON.stringify(data));
-            continue; // Try next model
-          }
-
+        if (res.status === 401) {
           return {
-            statusCode: 200,
+            statusCode: 500,
             headers: {
               "Access-Control-Allow-Origin": "*",
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-              response: data.choices[0].message.content
+            body: JSON.stringify({ 
+              error: "Authentication error",
+              response: "I'm having authentication issues. Please check your API key."
+            })
+          };
+        } else if (res.status === 429) {
+          return {
+            statusCode: 429,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ 
+              error: "Rate limited",
+              response: "I'm getting too many requests right now. Please wait a moment and try again."
             })
           };
         } else {
-          const errorText = await res.text();
-          console.error(`OpenRouter API error for ${model}: ${res.status} - ${errorText}`);
-          lastError = { status: res.status, text: errorText };
-          
-          // If it's a 401 or 429, don't try other models
-          if (res.status === 401 || res.status === 429) {
-            break;
-          }
-          // Continue to next model for other errors
+          return {
+            statusCode: 500,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ 
+              error: `API Error: ${res.status}`,
+              response: "The AI service is having issues. Please try again later."
+            })
+          };
         }
-      } catch (error) {
-        console.error(`Error with model ${model}:`, error.message);
-        lastError = error;
-        // Continue to next model
       }
-    }
 
-    clearTimeout(timeoutId);
+      const data = await res.json();
+      console.log('API Response received:', JSON.stringify(data).substring(0, 200) + '...');
 
-    // If we get here, all models failed
-    if (lastError && lastError.status) {
-      // Handle specific error cases from the last attempt
-      if (lastError.status === 401) {
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('Invalid API response format:', JSON.stringify(data));
         return {
           statusCode: 500,
           headers: {
@@ -160,23 +150,40 @@ exports.handler = async function(event, context) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({ 
-            error: "Authentication error",
-            response: "I'm having authentication issues. Please try again later."
+            error: "Invalid response format",
+            response: "I received an unexpected response from the AI service."
           })
         };
-      } else if (lastError.status === 429) {
+      }
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          response: data.choices[0].message.content
+        })
+      };
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.error('Fetch error:', fetchError.message);
+      
+      if (fetchError.name === 'AbortError') {
         return {
-          statusCode: 429,
+          statusCode: 408,
           headers: {
             "Access-Control-Allow-Origin": "*",
             "Content-Type": "application/json"
           },
           body: JSON.stringify({ 
-            error: "Rate limited",
-            response: "I'm getting too many requests right now. Please wait a moment and try again."
+            error: "Request timeout",
+            response: "The request took too long to process. Please try again."
           })
         };
-      } else if (lastError.status >= 500) {
+      } else if (fetchError.code === 'ENOTFOUND' || fetchError.code === 'ECONNREFUSED') {
         return {
           statusCode: 503,
           headers: {
@@ -184,55 +191,28 @@ exports.handler = async function(event, context) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({ 
-            error: "Service unavailable",
-            response: "The AI service is temporarily unavailable. Please try again in a few minutes."
+            error: "Network error",
+            response: "I'm having network connectivity issues. Please check your connection and try again."
           })
         };
+      } else {
+        throw fetchError; // Re-throw to be caught by outer catch
       }
     }
 
-    // If all models failed, throw the last error
-    throw lastError || new Error('All models failed');
   } catch (error) {
-    console.error('Error details:', error.message, error.stack);
+    console.error('Unexpected error:', error.message, error.stack);
     
-    // Handle specific error types
-    if (error.name === 'AbortError') {
-      return {
-        statusCode: 408,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          error: "Request timeout",
-          response: "The request took too long to process. Please try again."
-        })
-      };
-    } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-      return {
-        statusCode: 503,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          error: "Network error",
-          response: "I'm having network connectivity issues. Please check your connection and try again."
-        })
-      };
-    } else {
-      return {
-        statusCode: 500,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          error: "Internal server error",
-          response: "Something went wrong on my end. Please try again in a moment."
-        })
-      };
-    }
+    return {
+      statusCode: 500,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ 
+        error: "Internal server error",
+        response: "Something went wrong on my end. Please try again in a moment."
+      })
+    };
   }
 }; 
