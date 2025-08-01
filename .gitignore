@@ -129,7 +129,7 @@ functions/node_modules/
 functions/.env
 
 # Audio files (if you don't want to track them)
-*.mp3
+# *.mp3  # Commented out to allow chat.mp3 to be tracked
 *.wav
 *.ogg
 *.m4a
