@@ -63,15 +63,23 @@ function chatBot() {
         })
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Return the actual error message from the backend
+        throw new Error(data.response || "I'm having trouble connecting right now. Please try again in a moment.");
       }
 
-      const data = await response.json();
       return data.response || "I'm sorry, I didn't get that.";
     } catch (error) {
       console.error('Error calling API:', error);
-      throw error;
+      // If it's our custom error message, throw it as is
+      if (error.message && (error.message.includes("I'm feeling very tired") || 
+                           error.message.includes("I'm having trouble connecting"))) {
+        throw error;
+      }
+      // Otherwise throw a generic error
+      throw new Error("I'm having trouble connecting right now. Please try again in a moment.");
     }
   };
 
@@ -144,7 +152,9 @@ $(function () {
     } catch (error) {
       console.error('Error in submitChat:', error);
       busy.hide();
-      updateChat('other', "I'm having trouble connecting right now. Please try again in a moment.");
+      
+      // Show the actual error message from the backend
+      updateChat('other', error.message);
     }
   };
 
