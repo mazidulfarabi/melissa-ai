@@ -112,9 +112,9 @@ exports.handler = async function(event, context) {
           body: JSON.stringify({
             model: "mistralai/mistral-7b-instruct:free",
             messages: [
-              { role: "user", content: "Hello" }
+              { role: "user", content: "Hi" }
             ],
-            max_tokens: 30
+            max_tokens: 20
           })
         });
 
@@ -146,7 +146,7 @@ exports.handler = async function(event, context) {
 
     // Simple request with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
 
     // Try a simple test first
     console.log('Making test API request...');
@@ -161,9 +161,9 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({
           model: "mistralai/mistral-7b-instruct:free",
           messages: [
-            { role: "user", content: "Hello" }
+            { role: "user", content: "Hi" }
           ],
-          max_tokens: 30
+          max_tokens: 20
         }),
         signal: controller.signal
       });
@@ -220,7 +220,7 @@ exports.handler = async function(event, context) {
           messages: [
             { 
               role: "system", 
-              content: "You are Melissa, a cool, nerdy cyber-girl inspired by KillJoy from Valorant. Keep responses SHORT and CONCISE (1-2 sentences max). Be conversational, warm, and engaging. Don't give long explanations or multiple facts. Just respond naturally and briefly." 
+              content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly." 
             },
             { role: "user", content: message }
           ],
@@ -302,6 +302,20 @@ exports.handler = async function(event, context) {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error('Actual API Error:', error.message);
+      
+      if (error.name === 'AbortError') {
+        return {
+          statusCode: 408,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Request timeout",
+            response: "The AI is taking too long to respond. Please try again."
+          })
+        };
+      }
       
       return {
         statusCode: 500,
