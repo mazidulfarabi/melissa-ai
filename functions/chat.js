@@ -103,97 +103,153 @@ exports.handler = async function(event, context) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-    // Try multiple models in case one fails
-    const models = [
-      "anthropic/claude-3-haiku:free",
-      "google/gemini-2.0-flash-exp:free", 
-      "meta-llama/llama-3.1-8b-instruct:free"
-    ];
+    // Try a simple test first
+    console.log('Making test API request...');
+    
+    try {
+      const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "anthropic/claude-3-haiku:free",
+          messages: [
+            { role: "user", content: "Hello" }
+          ],
+          max_tokens: 50
+        }),
+        signal: controller.signal
+      });
 
-    for (const model of models) {
-      try {
-        console.log(`Trying model: ${model}`);
+      console.log('Test API Response Status:', testRes.status);
+      
+      if (!testRes.ok) {
+        const errorText = await testRes.text();
+        console.error('Test API Error:', errorText);
         
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
+        return {
+          statusCode: 500,
           headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Access-Control-Allow-Origin": "*",
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { 
-                role: "system", 
-                content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
-              },
-              { role: "user", content: message }
-            ],
-            max_tokens: 150,
-            temperature: 0.7
-          }),
-          signal: controller.signal
-        });
-
-        console.log(`API Response Status for ${model}:`, res.status);
-        console.log('API Response Headers:', JSON.stringify(Object.fromEntries(res.headers.entries())));
-
-        if (res.ok) {
-          clearTimeout(timeoutId);
-          const data = await res.json();
-          console.log('API Response received:', JSON.stringify(data).substring(0, 200) + '...');
-
-          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.error('Invalid API response format:', JSON.stringify(data));
-            continue; // Try next model
-          }
-
-          return {
-            statusCode: 200,
-            headers: {
-              "Access-Control-Allow-Origin": "*",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              response: data.choices[0].message.content
-            })
-          };
-        } else {
-          const errorText = await res.text();
-          console.error(`API Error Response for ${model}:`, errorText);
-          console.error('Full error details:', {
-            model: model,
-            status: res.status,
-            statusText: res.statusText,
-            headers: Object.fromEntries(res.headers.entries()),
-            body: errorText
-          });
-          
-          // If it's a 401 or 429, don't try other models
-          if (res.status === 401 || res.status === 429) {
-            break;
-          }
-          // Continue to next model for other errors
-        }
-      } catch (modelError) {
-        console.error(`Error with model ${model}:`, modelError.message);
-        // Continue to next model
+          body: JSON.stringify({ 
+            error: `API Test Failed: ${testRes.status}`,
+            response: `API test failed with status ${testRes.status}. Please check the logs for details.`
+          })
+        };
       }
+
+      const testData = await testRes.json();
+      console.log('Test API Success:', JSON.stringify(testData).substring(0, 100) + '...');
+
+    } catch (testError) {
+      console.error('Test API Error:', testError.message);
+      return {
+        statusCode: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          error: "API Test Failed",
+          response: `API test failed: ${testError.message}`
+        })
+      };
     }
 
-    // If we get here, all models failed
-    clearTimeout(timeoutId);
-    return {
-      statusCode: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ 
-        error: "All models failed",
-        response: "I'm having trouble connecting to the AI service. Please try again later."
-      })
-    };
+    // If test passes, try the actual request
+    console.log('Test passed, making actual request...');
+    
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "anthropic/claude-3-haiku:free",
+          messages: [
+            { 
+              role: "system", 
+              content: "You are Melissa, a cool, nerdy cyber-girl -inspired by KillJoy from Valorant. Be conversational, warm, and engaging. Keep responses concise but informative. You can share interesting facts, tell jokes, and have casual conversations. Always maintain a positive and supportive tone." 
+            },
+            { role: "user", content: message }
+          ],
+          max_tokens: 150,
+          temperature: 0.7
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      console.log('Actual API Response Status:', res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Actual API Error:', errorText);
+        
+        return {
+          statusCode: 500,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: `API Error: ${res.status}`,
+            response: `API request failed with status ${res.status}. Please check the logs.`
+          })
+        };
+      }
+
+      const data = await res.json();
+      console.log('Actual API Success:', JSON.stringify(data).substring(0, 200) + '...');
+
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('Invalid API response format:', JSON.stringify(data));
+        return {
+          statusCode: 500,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Invalid response format",
+            response: "I received an unexpected response from the AI service."
+          })
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          response: data.choices[0].message.content
+        })
+      };
+
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Actual API Error:', error.message);
+      
+      return {
+        statusCode: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          error: "API Error",
+          response: `API request failed: ${error.message}`
+        })
+      };
+    }
 
   } catch (error) {
     console.error('Unexpected error:', error.message, error.stack);
