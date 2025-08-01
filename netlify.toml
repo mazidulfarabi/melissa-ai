@@ -10,19 +10,5 @@
 [functions]
   directory = "functions"
 
-# Cache configuration for better build performance
-[[plugins]]
-  package = "@netlify/plugin-functions-install-core"
-
 [build.environment]
-  NODE_VERSION = "18"
-
-# Cache directories for faster builds
-[[plugins]]
-  package = "@netlify/plugin-cache"
-  [plugins.inputs]
-    paths = [
-      "functions/node_modules/.cache",
-      ".npm",
-      ".cache"
-    ] 
+  NODE_VERSION = "18" 
