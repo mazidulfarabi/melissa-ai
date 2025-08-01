@@ -148,10 +148,29 @@ $(function () {
   var playNotificationSound = function() {
     try {
       var audio = new Audio('chat.mp3');
-      audio.play().catch(function(error) {
-        console.log('Audio play failed, using fallback beep:', error);
+      
+      // Add event listeners to detect loading issues
+      audio.addEventListener('error', function(e) {
+        console.log('Audio file not available, using fallback beep');
         playFallbackBeep();
       });
+      
+      audio.addEventListener('loadstart', function() {
+        console.log('Audio file loading...');
+      });
+      
+      audio.addEventListener('canplaythrough', function() {
+        console.log('Audio file loaded successfully');
+      });
+      
+      // Try to play the audio
+      var playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(function(error) {
+          console.log('Audio play failed, using fallback beep:', error);
+          playFallbackBeep();
+        });
+      }
     } catch (error) {
       console.log('Audio creation failed, using fallback beep:', error);
       playFallbackBeep();
@@ -167,14 +186,17 @@ $(function () {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      oscillator.frequency.value = 800;
+      // Use a more pleasant frequency (C5 note) and smoother envelope
+      oscillator.frequency.value = 523.25; // C5 note instead of 800Hz
       oscillator.type = 'sine';
       
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      // Smoother volume envelope
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
       
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
+      oscillator.stop(audioContext.currentTime + 0.15);
     } catch (error) {
       console.log('Fallback beep failed:', error);
     }
