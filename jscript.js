@@ -123,12 +123,16 @@ $(function () {
     updateChat('you', inputText);
     bot.addToHistory('user', inputText);
     
-    // Show busy indicator
+    // Show "Melissa is typing" indicator
+    busy.text("Melissa is typing...");
     busy.show();
     
     try {
       // Get bot response
       var reply = await bot.respondTo(inputText);
+      
+      // Hide typing indicator
+      busy.hide();
       
       // Update UI with bot response
       updateChat('other', reply);
@@ -139,38 +143,70 @@ $(function () {
       
     } catch (error) {
       console.error('Error in submitChat:', error);
-      updateChat('other', "I'm having trouble connecting right now. Please try again in a moment.");
-    } finally {
       busy.hide();
+      updateChat('other', "I'm having trouble connecting right now. Please try again in a moment.");
     }
   };
 
   var playNotificationSound = function() {
     try {
-      var audio = new Audio('chat.mp3');
+      // Try multiple paths for the audio file
+      var audioPaths = [
+        'chat.mp3',
+        './chat.mp3',
+        '/chat.mp3',
+        'assets/chat.mp3'
+      ];
       
-      // Add event listeners to detect loading issues
-      audio.addEventListener('error', function(e) {
-        console.log('Audio file not available, using fallback beep');
-        playFallbackBeep();
-      });
+      var audio = null;
+      var currentPathIndex = 0;
       
-      audio.addEventListener('loadstart', function() {
-        console.log('Audio file loading...');
-      });
-      
-      audio.addEventListener('canplaythrough', function() {
-        console.log('Audio file loaded successfully');
-      });
-      
-      // Try to play the audio
-      var playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(function(error) {
-          console.log('Audio play failed, using fallback beep:', error);
+      function tryNextPath() {
+        if (currentPathIndex >= audioPaths.length) {
+          console.log('All audio paths failed, using fallback beep');
           playFallbackBeep();
+          return;
+        }
+        
+        var path = audioPaths[currentPathIndex];
+        console.log('Trying audio path:', path);
+        
+        audio = new Audio(path);
+        
+        audio.addEventListener('error', function(e) {
+          console.log('Audio failed to load from:', path, e);
+          currentPathIndex++;
+          tryNextPath();
         });
+        
+        audio.addEventListener('loadstart', function() {
+          console.log('Audio loading from:', path);
+        });
+        
+        audio.addEventListener('canplaythrough', function() {
+          console.log('Audio loaded successfully from:', path);
+          // Try to play the audio
+          var playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(function(error) {
+              console.log('Audio play failed, using fallback beep:', error);
+              playFallbackBeep();
+            });
+          }
+        });
+        
+        // Set a timeout in case the audio doesn't load
+        setTimeout(function() {
+          if (audio.readyState < 2) { // HAVE_CURRENT_DATA
+            console.log('Audio load timeout for:', path);
+            currentPathIndex++;
+            tryNextPath();
+          }
+        }, 2000);
       }
+      
+      tryNextPath();
+      
     } catch (error) {
       console.log('Audio creation failed, using fallback beep:', error);
       playFallbackBeep();
