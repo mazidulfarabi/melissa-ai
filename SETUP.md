@@ -50,6 +50,8 @@ This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic resp
 - **Modern Chat UI**: Clean, iOS-style chat interface with typing indicators
 - **Intelligent AI**: Uses Mistral 7B via OpenRouter for reliable performance
 - **Automatic API Key Fallback**: Seamlessly switches to backup key when primary runs out
+- **Dynamic Status System**: Real-time online/offline status with blinking indicators
+- **Smart Alert System**: One-time rate limit notifications with actual reset times
 - **Chat History**: Persistent chat history using sessionStorage
 - **Smart Error Handling**: Rate limit detection with friendly "tired" messages
 - **Local Responses**: Common greetings handled locally to save API credits
@@ -58,6 +60,34 @@ This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic resp
 - **CORS Support**: Properly configured for web deployment
 - **Health Monitoring**: Built-in debugging endpoints
 - **Optimized Responses**: Concise responses (max 80 tokens) that fit perfectly
+- **Real Reset Timers**: Shows actual API reset times from OpenRouter
+
+## Dynamic Status System
+
+### Visual Indicators
+- **🟢 Online Status**: Green blinking dot + "Online" text (default state)
+- **🟠 Offline Status**: Orange blinking dot + "Offline" text (when rate limited)
+- **Always Interactive**: Continuous blinking animation for both states
+- **Real-time Updates**: Status changes automatically based on API availability
+
+### Status Management
+- **Automatic Detection**: Detects rate limits and updates status accordingly
+- **Persistent State**: Status persists across page refreshes using sessionStorage
+- **Reset Integration**: Automatically comes back online when API limits reset
+- **Manual Reset**: Reset button clears status and allows fresh start
+
+## Smart Alert System
+
+### Features
+- **One-Time Display**: Shows rate limit alert only once per session
+- **Real Reset Times**: Displays actual reset time from OpenRouter API headers
+- **Elegant Animation**: Smooth slide-in/slide-out with backdrop blur effect
+- **Auto-Dismiss**: Alert disappears after 5 seconds automatically
+- **No Repeated Messages**: Prevents showing "tired" message multiple times
+
+### Alert Content
+- **Before**: "Melissa set the wake-up alarm for T-reset"
+- **After**: "Melissa set the wake-up alarm for 12:00 AM Aug 3"
 
 ## File Structure
 ```
@@ -204,6 +234,19 @@ Add these environment variables in Netlify for debugging:
    - Check function logs to see fallback attempts
    - Ensure backup key has sufficient credits
 
+9. **Status stuck on offline**
+   - Click the reset button (🔄) to force clear rate limit status
+   - Run `resetMelissaRateLimit()` in browser console
+   - Clear session storage manually in browser dev tools
+   - Check if API keys are properly configured in Netlify
+   - Verify both keys are valid and have credits
+
+10. **Blinking indicators not working**
+    - Check if CSS animations are enabled in browser
+    - Verify stylesheet.css is loading properly
+    - Clear browser cache and refresh page
+    - Check browser console for CSS errors
+
 ### Debugging Steps
 
 1. **Test the health check**: Visit `/.netlify/functions/chat` with a GET request
@@ -214,6 +257,8 @@ Add these environment variables in Netlify for debugging:
 6. **Check browser console**: Look for JavaScript errors or network issues
 7. **Test audio**: Check if `chat.mp3` is accessible at your deployed URL
 8. **Monitor key usage**: Check function logs to see which key is being used for each request
+9. **Force reset status**: Use reset button or console command to clear rate limit status
+10. **Test fallback system**: Send multiple messages to trigger rate limits and observe fallback
 
 ### Error Messages Explained
 
