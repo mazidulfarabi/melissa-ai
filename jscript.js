@@ -94,76 +94,67 @@ $(function () {
   var delayEnd = 800;
 
   var bot = new chatBot();
-  var chat = $('#chatMessages');
-  var typingIndicator = $('#typingIndicator');
+  var chat = $('.chat');
   var waiting = 0;
+  $('.busy').text(robot + ' is typing...');
 
   // Load chat history on startup
   bot.loadHistory();
 
   var submitChat = async function () {
-    var input = $('.message-input').val();
+    var input = $('.input textarea').val();
     if (input == '') return;
 
-    $('.message-input').val('');
-    updateChat('user', input);
+    $('.input textarea').val('');
+    updateChat(you, input);
     
     // Add user message to history
     bot.addToHistory('user', input);
 
-    // Show typing indicator
-    typingIndicator.show();
+    $('.busy').css('display', 'block');
     waiting++;
 
     try {
       var reply = await bot.respondTo(input);
       
       setTimeout(function () {
-        // Hide typing indicator
-        typingIndicator.hide();
-        
         if (typeof reply === 'string') {
-          updateChat('bot', reply);
+          updateChat(robot, reply);
           // Add bot response to history
           bot.addToHistory('assistant', reply);
           playNotificationSound();
         } else {
           for (var r in reply) {
-            updateChat('bot', reply[r]);
+            updateChat(robot, reply[r]);
             // Add bot response to history
             bot.addToHistory('assistant', reply[r]);
             playNotificationSound();
           }
         }
-        if (--waiting == 0) typingIndicator.hide();
+        if (--waiting == 0) $('.busy').css('display', 'none');
       }, Math.floor(Math.random() * (delayEnd - delayStart) + delayStart));
       
     } catch (error) {
       console.error('Error in submitChat:', error);
       setTimeout(function () {
-        typingIndicator.hide();
-        updateChat('bot', "I'm sorry, something went wrong. Please try again.");
-        if (--waiting == 0) typingIndicator.hide();
+        updateChat(robot, "I'm sorry, something went wrong. Please try again.");
+        if (--waiting == 0) $('.busy').css('display', 'none');
       }, delayStart);
     }
   };
 
   var updateChat = function (party, text) {
-    var messageClass = party === 'user' ? 'user' : 'bot';
-    var time = new Date().toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: "numeric", 
-      minute: "numeric"
-    });
+    var style = 'you';
+    if (party != you) {
+      style = 'other';
+    }
 
-    var messageHtml = `
-      <div class="message ${messageClass}">
-        <div class="message-bubble">${text}</div>
-        <div class="message-time">${time}</div>
-      </div>
-    `;
+    var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
+    line.find('.party').addClass(style).text(party + ':');
+    line.find('.text').text(text);
+    line.find('.time').text(new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"}));
     
-    chat.append(messageHtml);
+    chat.append(line);
     chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
   };
 
@@ -218,28 +209,30 @@ $(function () {
     }
   };
 
-  $('.send-button').bind('click', submitChat);
+  $('.input button').bind('click', submitChat);
   
   // Handle Enter key press
-  $('.message-input').bind('keypress', function(e) {
+  $('.input textarea').bind('keypress', function(e) {
     if (e.which == 13 && !e.shiftKey) {
       e.preventDefault();
       submitChat();
     }
   });
 
-  // Auto-resize textarea
-  $('.message-input').on('input', function() {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-  });
+  // Add clear chat button functionality (optional)
+  // You can add a button to the HTML and bind it like this:
+  // $('.clear-chat').bind('click', function() {
+  //   bot.clearHistory();
+  //   chat.empty();
+  //   updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+  // });
 
   // Clear chat button functionality
   $('.clear-chat-btn').bind('click', function() {
     if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
       bot.clearHistory();
       chat.empty();
-      updateChat('bot', "Hi there, I'm Melissa! How can I help you today?");
+      updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
       // Add initial greeting to history
       bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
     }
@@ -247,28 +240,23 @@ $(function () {
 
   // Initial greeting (only if no history exists)
   if (bot.chatHistory.length === 0) {
-    updateChat('bot', "Hi there, I'm Melissa! How can I help you today?");
+    updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
     // Add initial greeting to history
     bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
   } else {
     // Restore chat history to UI
     console.log('Restoring chat history to UI...');
     bot.chatHistory.forEach(function(msg) {
-      var party = msg.role === 'user' ? 'user' : 'bot';
-      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: "numeric", 
-        minute: "numeric"
-      });
+      var party = msg.role === 'user' ? you : robot;
+      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"});
       
-      var messageHtml = `
-        <div class="message ${party}">
-          <div class="message-bubble">${msg.content}</div>
-          <div class="message-time">${time}</div>
-        </div>
-      `;
+      var style = msg.role === 'user' ? 'you' : 'other';
+      var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
+      line.find('.party').addClass(style).text(party + ':');
+      line.find('.text').text(msg.content);
+      line.find('.time').text(time);
       
-      chat.append(messageHtml);
+      chat.append(line);
     });
     chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
   }
