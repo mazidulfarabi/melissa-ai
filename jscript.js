@@ -150,91 +150,31 @@ $(function () {
 
   var playNotificationSound = function() {
     try {
-      // Try multiple paths for the audio file
-      var audioPaths = [
-        'chat.mp3',
-        './chat.mp3',
-        '/chat.mp3',
-        'assets/chat.mp3'
-      ];
+      console.log('Attempting to play chat.mp3...');
+      var audio = new Audio('chat.mp3');
+      audio.volume = 0.3; // Set volume to 30%
       
-      var audio = null;
-      var currentPathIndex = 0;
+      // Add event listeners for debugging
+      audio.addEventListener('loadstart', function() {
+        console.log('Audio load started');
+      });
       
-      function tryNextPath() {
-        if (currentPathIndex >= audioPaths.length) {
-          console.log('All audio paths failed, using fallback beep');
-          playFallbackBeep();
-          return;
-        }
-        
-        var path = audioPaths[currentPathIndex];
-        console.log('Trying audio path:', path);
-        
-        audio = new Audio(path);
-        
-        audio.addEventListener('error', function(e) {
-          console.log('Audio failed to load from:', path, e);
-          currentPathIndex++;
-          tryNextPath();
-        });
-        
-        audio.addEventListener('loadstart', function() {
-          console.log('Audio loading from:', path);
-        });
-        
-        audio.addEventListener('canplaythrough', function() {
-          console.log('Audio loaded successfully from:', path);
-          // Try to play the audio
-          var playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(function(error) {
-              console.log('Audio play failed, using fallback beep:', error);
-              playFallbackBeep();
-            });
-          }
-        });
-        
-        // Set a timeout in case the audio doesn't load
-        setTimeout(function() {
-          if (audio.readyState < 2) { // HAVE_CURRENT_DATA
-            console.log('Audio load timeout for:', path);
-            currentPathIndex++;
-            tryNextPath();
-          }
-        }, 2000);
-      }
+      audio.addEventListener('canplay', function() {
+        console.log('Audio can play');
+      });
       
-      tryNextPath();
+      audio.addEventListener('error', function(e) {
+        console.log('Audio error:', e);
+      });
       
+      // Simple play with error handling
+      audio.play().catch(function(error) {
+        console.log('Audio play failed:', error);
+        // No fallback - just log the error
+      });
     } catch (error) {
-      console.log('Audio creation failed, using fallback beep:', error);
-      playFallbackBeep();
-    }
-  };
-
-  var playFallbackBeep = function() {
-    try {
-      var audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      var oscillator = audioContext.createOscillator();
-      var gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      // Use a more pleasant frequency (C5 note) and smoother envelope
-      oscillator.frequency.value = 523.25; // C5 note instead of 800Hz
-      oscillator.type = 'sine';
-      
-      // Smoother volume envelope
-      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
-    } catch (error) {
-      console.log('Fallback beep failed:', error);
+      console.log('Audio creation failed:', error);
+      // No fallback - just log the error
     }
   };
 
