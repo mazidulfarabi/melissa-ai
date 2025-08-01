@@ -25,18 +25,21 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         status: "healthy",
         timestamp: new Date().toISOString(),
-        hasApiKey: !!process.env.OPENROUTER_API_KEY,
-        apiKeyLength: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.length : 0,
-        apiKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 10) + '...' : 'none',
+        hasPrimaryApiKey: !!process.env.OPENROUTER_API_KEY,
+        hasBackupApiKey: !!process.env.OPENROUTER_API_KEY_BACKUP,
+        primaryApiKeyLength: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.length : 0,
+        backupApiKeyLength: process.env.OPENROUTER_API_KEY_BACKUP ? process.env.OPENROUTER_API_KEY_BACKUP.length : 0,
+        primaryApiKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 10) + '...' : 'none',
+        backupApiKeyPrefix: process.env.OPENROUTER_API_KEY_BACKUP ? process.env.OPENROUTER_API_KEY_BACKUP.substring(0, 10) + '...' : 'none',
         environment: process.env.NODE_ENV || 'development'
       })
     };
   }
 
   try {
-    // Check if API key is available
-    if (!process.env.OPENROUTER_API_KEY) {
-      console.error('Missing OPENROUTER_API_KEY environment variable');
+    // Check if at least one API key is available
+    if (!process.env.OPENROUTER_API_KEY && !process.env.OPENROUTER_API_KEY_BACKUP) {
+      console.error('Missing both OPENROUTER_API_KEY and OPENROUTER_API_KEY_BACKUP environment variables');
       return {
         statusCode: 500,
         headers: {
@@ -50,9 +53,12 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Validate API key format
-    if (!process.env.OPENROUTER_API_KEY.startsWith('sk-')) {
-      console.error('Invalid API key format - should start with sk-');
+    // Validate API key formats
+    const primaryKeyValid = process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.startsWith('sk-');
+    const backupKeyValid = process.env.OPENROUTER_API_KEY_BACKUP && process.env.OPENROUTER_API_KEY_BACKUP.startsWith('sk-');
+    
+    if (!primaryKeyValid && !backupKeyValid) {
+      console.error('Invalid API key format - both keys should start with sk-');
       return {
         statusCode: 500,
         headers: {
@@ -61,7 +67,7 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "Invalid API key format",
-          response: "My API key is not properly configured. Please check the setup."
+          response: "My API keys are not properly configured. Please check the setup."
         })
       };
     }
@@ -80,8 +86,8 @@ exports.handler = async function(event, context) {
     }
 
     console.log('Starting API request...');
-    console.log('API Key present:', !!process.env.OPENROUTER_API_KEY);
-    console.log('API Key length:', process.env.OPENROUTER_API_KEY.length);
+    console.log('Primary API Key present:', !!process.env.OPENROUTER_API_KEY);
+    console.log('Backup API Key present:', !!process.env.OPENROUTER_API_KEY_BACKUP);
     console.log('User message:', message);
     console.log('Chat history length:', history ? history.length : 0);
 
@@ -205,6 +211,185 @@ exports.handler = async function(event, context) {
       return responses[Math.floor(Math.random() * responses.length)];
     };
 
+    // Helper function to make API call with fallback
+    const makeApiCallWithFallback = async (message, history) => {
+      const apiKeys = [];
+      
+      // Add primary key if valid
+      if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.startsWith('sk-')) {
+        apiKeys.push({ key: process.env.OPENROUTER_API_KEY, name: 'primary' });
+      }
+      
+      // Add backup key if valid
+      if (process.env.OPENROUTER_API_KEY_BACKUP && process.env.OPENROUTER_API_KEY_BACKUP.startsWith('sk-')) {
+        apiKeys.push({ key: process.env.OPENROUTER_API_KEY_BACKUP, name: 'backup' });
+      }
+
+      if (apiKeys.length === 0) {
+        throw new Error('No valid API keys available');
+      }
+
+      let lastError = null;
+
+      for (const { key, name } of apiKeys) {
+        console.log(`Trying ${name} API key...`);
+        
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+
+          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${key}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "mistralai/mistral-7b-instruct:free",
+              messages: [
+                { 
+                  role: "system", 
+                  content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
+                },
+                // Include recent chat history (last 10 messages to avoid token limits)
+                ...(history && history.length > 0 ? history.slice(-10).map(msg => ({
+                  role: msg.role,
+                  content: msg.content
+                })) : []),
+                { role: "user", content: message }
+              ],
+              max_tokens: 80,
+              temperature: 0.7
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+          console.log(`${name} API Response Status:`, res.status);
+
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`${name} API Error:`, errorText);
+
+            // Check for rate limit errors
+            const rawErrorText = errorText.toLowerCase();
+            if (rawErrorText.includes('rate limit') || 
+                rawErrorText.includes('limit exceeded') || 
+                rawErrorText.includes('free-models-per-day') ||
+                rawErrorText.includes('429')) {
+              console.log(`Rate limit detected for ${name} key, trying next key...`);
+              lastError = { type: 'rate_limit', message: errorText, key: name };
+              continue; // Try next key
+            }
+
+            // Try to parse JSON error response
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error && errorData.error.message) {
+                const errorMessage = errorData.error.message.toLowerCase();
+                if (errorMessage.includes('free-models-per-day') || 
+                    errorMessage.includes('rate limit') || 
+                    errorMessage.includes('limit exceeded') ||
+                    errorMessage.includes('429')) {
+                  console.log(`Rate limit detected for ${name} key in parsed JSON, trying next key...`);
+                  lastError = { type: 'rate_limit', message: errorText, key: name };
+                  continue; // Try next key
+                }
+              }
+            } catch (parseError) {
+              console.log('Error parsing JSON:', parseError.message);
+            }
+            
+            // If we get here, it's not a rate limit error
+            lastError = { type: 'api_error', message: errorText, key: name, status: res.status };
+            continue; // Try next key
+          }
+
+          const data = await res.json();
+          console.log(`${name} API Success:`, JSON.stringify(data).substring(0, 200) + '...');
+
+          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            console.error(`Invalid API response format from ${name} key:`, JSON.stringify(data));
+            lastError = { type: 'invalid_response', message: 'Invalid response format', key: name };
+            continue; // Try next key
+          }
+
+          // Success! Return the response
+          let responseContent = data.choices[0].message.content || "";
+          
+          // If response was truncated (indicated by finish_reason), add a note
+          if (data.choices[0].finish_reason === 'length') {
+            console.log('Response was truncated, adding completion note');
+            responseContent = responseContent.trim();
+            if (!responseContent.endsWith('.')) {
+              responseContent += '.';
+            }
+          }
+
+          // Ensure response is not too long for the chat interface
+          if (responseContent.length > 200) {
+            responseContent = responseContent.substring(0, 200).trim();
+            if (!responseContent.endsWith('.')) {
+              responseContent += '...';
+            }
+          }
+
+          return { success: true, response: responseContent, key: name };
+
+        } catch (error) {
+          clearTimeout(timeoutId);
+          console.error(`${name} API Error:`, error.message);
+          
+          // Check for rate limit errors in the catch block
+          let errorMessage = error.message.toLowerCase();
+          
+          try {
+            if (error.message.includes('{') && error.message.includes('}')) {
+              const parsedError = JSON.parse(error.message);
+              if (parsedError.error && parsedError.error.message) {
+                errorMessage = parsedError.error.message.toLowerCase();
+              }
+            }
+          } catch (parseError) {
+            // Continue with original error message if parsing fails
+          }
+          
+          if (errorMessage.includes('rate limit') || 
+              errorMessage.includes('limit exceeded') || 
+              errorMessage.includes('free-models-per-day') ||
+              errorMessage.includes('429')) {
+            console.log(`Rate limit detected for ${name} key in catch block, trying next key...`);
+            lastError = { type: 'rate_limit', message: error.message, key: name };
+            continue; // Try next key
+          }
+          
+          if (error.response && error.response.status === 429) {
+            console.log(`Rate limit detected for ${name} key via response status, trying next key...`);
+            lastError = { type: 'rate_limit', message: error.message, key: name };
+            continue; // Try next key
+          }
+          
+          if (error.name === 'AbortError') {
+            lastError = { type: 'timeout', message: 'Request timeout', key: name };
+            continue; // Try next key
+          }
+          
+          // Network errors might be rate limit related
+          if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
+            console.log(`Network error detected for ${name} key, might be rate limit related`);
+            lastError = { type: 'rate_limit', message: error.message, key: name };
+            continue; // Try next key
+          }
+          
+          lastError = { type: 'unknown', message: error.message, key: name };
+          continue; // Try next key
+        }
+      }
+
+      // If we get here, all keys failed
+      throw lastError || new Error('All API keys failed');
+    };
+
     // Check for local responses
     const normalizedMessage = message.toLowerCase().trim();
     
@@ -259,22 +444,61 @@ exports.handler = async function(event, context) {
     if (process.env.DEBUG_MODE === 'true') {
       console.log('Running in debug mode');
       try {
-        const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "mistralai/mistral-7b-instruct:free",
-            messages: [
-              { role: "user", content: "Hi" }
-            ],
-            max_tokens: 20
-          })
-        });
+        const debugResults = [];
+        
+        // Test primary key if available
+        if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.startsWith('sk-')) {
+          try {
+            const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "mistralai/mistral-7b-instruct:free",
+                messages: [
+                  { role: "user", content: "Hi" }
+                ],
+                max_tokens: 20
+              })
+            });
 
-        const errorText = await testRes.text();
+            const errorText = await testRes.text();
+            debugResults.push(`Primary Key: Status ${testRes.status}, Response: ${errorText.substring(0, 100)}`);
+          } catch (error) {
+            debugResults.push(`Primary Key: Error - ${error.message}`);
+          }
+        } else {
+          debugResults.push('Primary Key: Not configured or invalid');
+        }
+        
+        // Test backup key if available
+        if (process.env.OPENROUTER_API_KEY_BACKUP && process.env.OPENROUTER_API_KEY_BACKUP.startsWith('sk-')) {
+          try {
+            const testRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY_BACKUP}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "mistralai/mistral-7b-instruct:free",
+                messages: [
+                  { role: "user", content: "Hi" }
+                ],
+                max_tokens: 20
+              })
+            });
+
+            const errorText = await testRes.text();
+            debugResults.push(`Backup Key: Status ${testRes.status}, Response: ${errorText.substring(0, 100)}`);
+          } catch (error) {
+            debugResults.push(`Backup Key: Error - ${error.message}`);
+          }
+        } else {
+          debugResults.push('Backup Key: Not configured or invalid');
+        }
         
         return {
           statusCode: 200,
@@ -283,7 +507,7 @@ exports.handler = async function(event, context) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            response: `DEBUG: API Status: ${testRes.status}, Response: ${errorText.substring(0, 200)}`
+            response: `DEBUG: ${debugResults.join(' | ')}`
           })
         };
       } catch (debugError) {
@@ -300,147 +524,14 @@ exports.handler = async function(event, context) {
       }
     }
 
-    // Simple request with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
-
-    // Make the actual request directly
-    console.log('Making API request...');
+    // Make the API call with fallback
+    console.log('Making API request with fallback...');
     
     try {
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct:free",
-          messages: [
-            { 
-              role: "system", 
-              content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
-            },
-            // Include recent chat history (last 10 messages to avoid token limits)
-            ...(history && history.length > 0 ? history.slice(-10).map(msg => ({
-              role: msg.role,
-              content: msg.content
-            })) : []),
-            { role: "user", content: message }
-          ],
-          max_tokens: 80,
-          temperature: 0.7
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      console.log('API Response Status:', res.status);
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('API Error:', errorText);
-
-        // Check for rate limit errors first
-        const rawErrorText = errorText.toLowerCase();
-        if (rawErrorText.includes('rate limit') || 
-            rawErrorText.includes('limit exceeded') || 
-            rawErrorText.includes('free-models-per-day') ||
-            rawErrorText.includes('429')) {
-          console.log('Rate limit detected in raw text, returning tired message');
-          return {
-            statusCode: 429,
-            headers: {
-              "Access-Control-Allow-Origin": "*",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ 
-              error: "Daily limit exceeded",
-              response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-            })
-          };
-        }
-
-        // Try to parse JSON error response
-        try {
-          const errorData = JSON.parse(errorText);
-          console.log('Parsed error data:', JSON.stringify(errorData));
-          if (errorData.error && errorData.error.message) {
-            const errorMessage = errorData.error.message.toLowerCase();
-            if (errorMessage.includes('free-models-per-day') || 
-                errorMessage.includes('rate limit') || 
-                errorMessage.includes('limit exceeded') ||
-                errorMessage.includes('429')) {
-              console.log('Rate limit detected in parsed JSON, returning tired message');
-              return {
-                statusCode: 429,
-                headers: {
-                  "Access-Control-Allow-Origin": "*",
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ 
-                  error: "Daily limit exceeded",
-                  response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-                })
-              };
-            }
-          }
-        } catch (parseError) {
-          console.log('Error parsing JSON:', parseError.message);
-        }
-        
-        // If we get here, it's not a rate limit error
-        return {
-          statusCode: 500,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ 
-            error: `API Error: ${res.status}`,
-            response: "The AI service is having issues. Please try again later."
-          })
-        };
-      }
-
-      const data = await res.json();
-      console.log('API Success:', JSON.stringify(data).substring(0, 200) + '...');
-
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error('Invalid API response format:', JSON.stringify(data));
-        return {
-          statusCode: 500,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ 
-            error: "Invalid response format",
-            response: "I received an unexpected response from the AI service."
-          })
-        };
-      }
-
-      // Get the response content and ensure it's complete
-      let responseContent = data.choices[0].message.content || "";
+      const result = await makeApiCallWithFallback(message, history);
       
-      // If response was truncated (indicated by finish_reason), add a note
-      if (data.choices[0].finish_reason === 'length') {
-        console.log('Response was truncated, adding completion note');
-        responseContent = responseContent.trim();
-        if (!responseContent.endsWith('.')) {
-          responseContent += '.';
-        }
-      }
-
-      // Ensure response is not too long for the chat interface
-      if (responseContent.length > 200) {
-        responseContent = responseContent.substring(0, 200).trim();
-        if (!responseContent.endsWith('.')) {
-          responseContent += '...';
-        }
-      }
-
+      console.log(`API call successful using ${result.key} key`);
+      
       return {
         statusCode: 200,
         headers: {
@@ -448,36 +539,15 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          response: responseContent
+          response: result.response
         })
       };
 
     } catch (error) {
-      clearTimeout(timeoutId);
-      console.error('API Error:', error.message);
+      console.error('All API keys failed:', error);
       
-      // Check for rate limit errors in the catch block too
-      let errorMessage = error.message.toLowerCase();
-      
-      // Try to parse JSON error messages - check if it's a JSON string
-      try {
-        if (error.message.includes('{') && error.message.includes('}')) {
-          const parsedError = JSON.parse(error.message);
-          if (parsedError.error && parsedError.error.message) {
-            errorMessage = parsedError.error.message.toLowerCase();
-            console.log('Parsed JSON error message in catch block:', errorMessage);
-          }
-        }
-      } catch (parseError) {
-        // Continue with original error message if parsing fails
-        console.log('Failed to parse error message as JSON:', parseError.message);
-      }
-      
-      if (errorMessage.includes('rate limit') || 
-          errorMessage.includes('limit exceeded') || 
-          errorMessage.includes('free-models-per-day') ||
-          errorMessage.includes('429')) {
-        console.log('Rate limit detected in catch block, returning tired message');
+      // Check if it's a rate limit error from all keys
+      if (error.type === 'rate_limit') {
         return {
           statusCode: 429,
           headers: {
@@ -491,23 +561,8 @@ exports.handler = async function(event, context) {
         };
       }
       
-      // Check if the error object has additional properties that might contain rate limit info
-      if (error.response && error.response.status === 429) {
-        console.log('Rate limit detected via response status, returning tired message');
-        return {
-          statusCode: 429,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ 
-            error: "Daily limit exceeded",
-            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-          })
-        };
-      }
-      
-      if (error.name === 'AbortError') {
+      // Handle timeout errors
+      if (error.type === 'timeout') {
         return {
           statusCode: 408,
           headers: {
@@ -521,22 +576,7 @@ exports.handler = async function(event, context) {
         };
       }
       
-      // If we get here, it's an unknown error, but let's check if it's a network error that might be rate limit related
-      if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
-        console.log('Network error detected, might be rate limit related');
-        return {
-          statusCode: 429,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ 
-            error: "Daily limit exceeded",
-            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-          })
-        };
-      }
-      
+      // Handle other errors
       return {
         statusCode: 500,
         headers: {
@@ -552,40 +592,6 @@ exports.handler = async function(event, context) {
 
   } catch (error) {
     console.error('Unexpected error:', error.message, error.stack);
-    
-    // Check for rate limit errors in the outer catch block too
-    let errorMessage = error.message.toLowerCase();
-    
-    // Try to parse JSON error messages
-    try {
-      if (error.message.startsWith('{')) {
-        const parsedError = JSON.parse(error.message);
-        if (parsedError.error && parsedError.error.message) {
-          errorMessage = parsedError.error.message.toLowerCase();
-          console.log('Parsed JSON error message in outer catch:', errorMessage);
-        }
-      }
-    } catch (parseError) {
-      // Continue with original error message if parsing fails
-    }
-    
-    if (errorMessage.includes('rate limit') || 
-        errorMessage.includes('limit exceeded') || 
-        errorMessage.includes('free-models-per-day') ||
-        errorMessage.includes('429')) {
-      console.log('Rate limit detected in outer catch block, returning tired message');
-      return {
-        statusCode: 429,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ 
-          error: "Daily limit exceeded",
-          response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-        })
-      };
-    }
     
     return {
       statusCode: 500,
