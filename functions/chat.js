@@ -319,7 +319,7 @@ exports.handler = async function(event, context) {
           messages: [
             { 
               role: "system", 
-              content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly." 
+              content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
             },
             // Include recent chat history (last 10 messages to avoid token limits)
             ...(history && history.length > 0 ? history.slice(-10).map(msg => ({
