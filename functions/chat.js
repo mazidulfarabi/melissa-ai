@@ -66,7 +66,7 @@ exports.handler = async function(event, context) {
       };
     }
 
-    const { message } = JSON.parse(event.body || '{}');
+    const { message, history } = JSON.parse(event.body || '{}');
 
     if (!message) {
       return {
@@ -83,6 +83,7 @@ exports.handler = async function(event, context) {
     console.log('API Key present:', !!process.env.OPENROUTER_API_KEY);
     console.log('API Key length:', process.env.OPENROUTER_API_KEY.length);
     console.log('User message:', message);
+    console.log('Chat history length:', history ? history.length : 0);
 
     // Test mode - return simple response without API call
     if (process.env.TEST_MODE === 'true') {
@@ -222,6 +223,11 @@ exports.handler = async function(event, context) {
               role: "system", 
               content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly." 
             },
+            // Include recent chat history (last 10 messages to avoid token limits)
+            ...(history && history.length > 0 ? history.slice(-10).map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })) : []),
             { role: "user", content: message }
           ],
           max_tokens: 80,

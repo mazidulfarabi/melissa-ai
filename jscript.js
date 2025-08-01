@@ -1,8 +1,57 @@
 // OpenRouter AI API endpoint - replace with your actual API endpoint
 const API_ENDPOINT = '/api/chat'; // This will be handled by Netlify Functions
 
+// Chat history management
+const CHAT_HISTORY_KEY = 'melissa_chat_history';
+const MAX_HISTORY_LENGTH = 50; // Maximum number of messages to store
+
 function chatBot() {
   this.input;
+  this.chatHistory = [];
+  
+  // Load chat history from sessionStorage
+  this.loadHistory = function() {
+    try {
+      const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
+      if (saved) {
+        this.chatHistory = JSON.parse(saved);
+        console.log('Loaded chat history:', this.chatHistory.length, 'messages');
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      this.chatHistory = [];
+    }
+  };
+  
+  // Save chat history to sessionStorage
+  this.saveHistory = function() {
+    try {
+      // Keep only the last MAX_HISTORY_LENGTH messages
+      if (this.chatHistory.length > MAX_HISTORY_LENGTH) {
+        this.chatHistory = this.chatHistory.slice(-MAX_HISTORY_LENGTH);
+      }
+      sessionStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(this.chatHistory));
+    } catch (error) {
+      console.error('Error saving chat history:', error);
+    }
+  };
+  
+  // Add message to history
+  this.addToHistory = function(role, content) {
+    this.chatHistory.push({
+      role: role,
+      content: content,
+      timestamp: new Date().toISOString()
+    });
+    this.saveHistory();
+  };
+  
+  // Clear chat history
+  this.clearHistory = function() {
+    this.chatHistory = [];
+    sessionStorage.removeItem(CHAT_HISTORY_KEY);
+    console.log('Chat history cleared');
+  };
   
   this.respondTo = async function (input) {
     this.input = input.toLowerCase();
@@ -14,7 +63,8 @@ function chatBot() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: input
+          message: input,
+          history: this.chatHistory // Send chat history for context
         })
       });
 
@@ -48,12 +98,18 @@ $(function () {
   var waiting = 0;
   $('.busy').text(robot + ' is typing...');
 
+  // Load chat history on startup
+  bot.loadHistory();
+
   var submitChat = async function () {
     var input = $('.input textarea').val();
     if (input == '') return;
 
     $('.input textarea').val('');
     updateChat(you, input);
+    
+    // Add user message to history
+    bot.addToHistory('user', input);
 
     $('.busy').css('display', 'block');
     waiting++;
@@ -64,10 +120,14 @@ $(function () {
       setTimeout(function () {
         if (typeof reply === 'string') {
           updateChat(robot, reply);
+          // Add bot response to history
+          bot.addToHistory('assistant', reply);
           new Audio('chat.mp3').play();
         } else {
           for (var r in reply) {
             updateChat(robot, reply[r]);
+            // Add bot response to history
+            bot.addToHistory('assistant', reply[r]);
             new Audio('chat.mp3').play();
           }
         }
@@ -108,6 +168,45 @@ $(function () {
     }
   });
 
-  // Initial greeting
-  updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+  // Add clear chat button functionality (optional)
+  // You can add a button to the HTML and bind it like this:
+  // $('.clear-chat').bind('click', function() {
+  //   bot.clearHistory();
+  //   chat.empty();
+  //   updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+  // });
+
+  // Clear chat button functionality
+  $('.clear-chat-btn').bind('click', function() {
+    if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
+      bot.clearHistory();
+      chat.empty();
+      updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+      // Add initial greeting to history
+      bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+    }
+  });
+
+  // Initial greeting (only if no history exists)
+  if (bot.chatHistory.length === 0) {
+    updateChat(robot, "Hi there, I'm Melissa! How can I help you today?");
+    // Add initial greeting to history
+    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+  } else {
+    // Restore chat history to UI
+    console.log('Restoring chat history to UI...');
+    bot.chatHistory.forEach(function(msg) {
+      var party = msg.role === 'user' ? you : robot;
+      var time = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric"});
+      
+      var style = msg.role === 'user' ? 'you' : 'other';
+      var line = $('<div class="msg-bubble"><span class="party"></span> <span class="text"></span> <span class="time"></span></div>');
+      line.find('.party').addClass(style).text(party + ':');
+      line.find('.text').text(msg.content);
+      line.find('.time').text(time);
+      
+      chat.append(line);
+    });
+    chat.stop().animate({ scrollTop: chat.prop("scrollHeight") });
+  }
 });
