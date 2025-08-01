@@ -110,7 +110,7 @@ exports.handler = async function(event, context) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-exp:free",
+            model: "meta-llama/llama-3.1-8b-instruct:free",
             messages: [
               { role: "user", content: "Hello" }
             ],
@@ -159,7 +159,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-exp:free",
+          model: "meta-llama/llama-3.1-8b-instruct:free",
           messages: [
             { role: "user", content: "Hello" }
           ],
@@ -216,7 +216,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-exp:free",
+          model: "meta-llama/llama-3.1-8b-instruct:free",
           messages: [
             { 
               role: "system", 
