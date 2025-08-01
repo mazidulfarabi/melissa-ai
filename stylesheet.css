@@ -89,12 +89,12 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  animation: statusBlink 2s infinite;
+  animation: statusBlink 1s infinite;
 }
 
 .contact-status.offline {
   color: #FF9500;
-  animation: statusBlinkOffline 2s infinite;
+  animation: statusBlinkOffline 1s infinite;
 }
 
 .online-dot {
@@ -103,12 +103,12 @@ body {
   background-color: #34C759;
   border-radius: 50%;
   display: inline-block;
-  animation: dotBlink 2s infinite;
+  animation: dotBlink 1s infinite;
 }
 
 .online-dot.offline {
   background-color: #FF9500;
-  animation: dotBlinkOffline 2s infinite;
+  animation: dotBlinkOffline 1s infinite;
 }
 
 @keyframes pulse {
