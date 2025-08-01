@@ -26,7 +26,9 @@ exports.handler = async function(event, context) {
         status: "healthy",
         timestamp: new Date().toISOString(),
         hasApiKey: !!process.env.OPENROUTER_API_KEY,
-        apiKeyLength: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.length : 0
+        apiKeyLength: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.length : 0,
+        apiKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 10) + '...' : 'none',
+        environment: process.env.NODE_ENV || 'development'
       })
     };
   }
@@ -44,6 +46,22 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({ 
           error: "Configuration error",
           response: "I'm not properly configured right now. Please contact support."
+        })
+      };
+    }
+
+    // Validate API key format
+    if (!process.env.OPENROUTER_API_KEY.startsWith('sk-')) {
+      console.error('Invalid API key format - should start with sk-');
+      return {
+        statusCode: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          error: "Invalid API key format",
+          response: "My API key is not properly configured. Please check the setup."
         })
       };
     }
@@ -66,6 +84,21 @@ exports.handler = async function(event, context) {
     console.log('API Key length:', process.env.OPENROUTER_API_KEY.length);
     console.log('User message:', message);
 
+    // Test mode - return simple response without API call
+    if (process.env.TEST_MODE === 'true') {
+      console.log('Running in test mode - skipping API call');
+      return {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          response: `Test mode: I received your message "${message}". This is a test response without calling the API.`
+        })
+      };
+    }
+
     // Simple request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
@@ -78,7 +111,7 @@ exports.handler = async function(event, context) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3-haiku:free",
+          model: "google/gemini-2.0-flash-exp:free",
           messages: [
             { 
               role: "system", 
