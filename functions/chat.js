@@ -189,21 +189,52 @@ exports.handler = async function(event, context) {
         // Check for specific rate limit error
         try {
           const errorData = JSON.parse(errorText);
-          if (errorData.error && errorData.error.message && errorData.error.message.includes('free-models-per-day')) {
-            return {
-              statusCode: 429,
-              headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ 
-                error: "Daily limit exceeded",
-                response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
-              })
-            };
+          console.log('Parsed error data:', JSON.stringify(errorData));
+          
+          // Check multiple possible rate limit error patterns
+          if (errorData.error && errorData.error.message) {
+            const errorMessage = errorData.error.message.toLowerCase();
+            if (errorMessage.includes('free-models-per-day') || 
+                errorMessage.includes('rate limit') || 
+                errorMessage.includes('limit exceeded') ||
+                errorMessage.includes('429')) {
+              console.log('Rate limit detected, returning tired message');
+              return {
+                statusCode: 429,
+                headers: {
+                  "Access-Control-Allow-Origin": "*",
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ 
+                  error: "Daily limit exceeded",
+                  response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+                })
+              };
+            }
           }
         } catch (parseError) {
+          console.log('Error parsing JSON:', parseError.message);
           // Continue with normal error handling if JSON parsing fails
+        }
+        
+        // Also check the raw error text for rate limit indicators
+        const rawErrorText = errorText.toLowerCase();
+        if (rawErrorText.includes('rate limit') || 
+            rawErrorText.includes('limit exceeded') || 
+            rawErrorText.includes('free-models-per-day') ||
+            rawErrorText.includes('429')) {
+          console.log('Rate limit detected in raw text, returning tired message');
+          return {
+            statusCode: 429,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ 
+              error: "Daily limit exceeded",
+              response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+            })
+          };
         }
         
         return {
@@ -271,6 +302,26 @@ exports.handler = async function(event, context) {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error('API Error:', error.message);
+      
+      // Check for rate limit errors in the catch block too
+      const errorMessage = error.message.toLowerCase();
+      if (errorMessage.includes('rate limit') || 
+          errorMessage.includes('limit exceeded') || 
+          errorMessage.includes('free-models-per-day') ||
+          errorMessage.includes('429')) {
+        console.log('Rate limit detected in catch block, returning tired message');
+        return {
+          statusCode: 429,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Daily limit exceeded",
+            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴"
+          })
+        };
+      }
       
       if (error.name === 'AbortError') {
         return {
