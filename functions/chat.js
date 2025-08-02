@@ -360,14 +360,6 @@ exports.handler = async function(event, context) {
             }
           }
 
-          // Ensure response is not too long for the chat interface
-          if (responseContent.length > 200) {
-            responseContent = responseContent.substring(0, 200).trim();
-            if (!responseContent.endsWith('.')) {
-              responseContent += '...';
-            }
-          }
-
           return { success: true, response: responseContent, key: name };
 
         } catch (error) {
