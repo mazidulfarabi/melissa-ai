@@ -187,6 +187,36 @@ exports.handler = async function(event, context) {
         "I don't have weather access, but I hope you're having good weather! ☀️",
         "I can't see the weather, but I hope it's beautiful outside! 🌈"
       ],
+      'weather': [
+        "I can't check the weather right now, but I hope it's nice where you are! 🌤️",
+        "I don't have weather access, but I hope you're having good weather! ☀️",
+        "I can't see the weather, but I hope it's beautiful outside! 🌈"
+      ],
+      'raining': [
+        "Rainy days can be cozy! ☔ Perfect for staying in and chatting! 😊",
+        "Rain is nature's way of watering the plants! 🌧️ Hope you're staying dry! ☂️",
+        "Rainy weather is great for reading or watching movies! 📚☔ Stay cozy! 😊"
+      ],
+      'rain': [
+        "Rainy days can be cozy! ☔ Perfect for staying in and chatting! 😊",
+        "Rain is nature's way of watering the plants! 🌧️ Hope you're staying dry! ☂️",
+        "Rainy weather is great for reading or watching movies! 📚☔ Stay cozy! 😊"
+      ],
+      'sunny': [
+        "Sunny days are the best! ☀️ Perfect for going outside! 😊",
+        "Beautiful sunny weather! 🌞 Hope you're enjoying it! 😄",
+        "Sunshine makes everything better! ☀️ Have a great day! 😊"
+      ],
+      'cold': [
+        "Brr! Cold weather calls for hot drinks and warm blankets! ☕🧣 Stay warm! 😊",
+        "Cold days are perfect for staying cozy inside! 🏠 Hot chocolate time! ☕",
+        "Bundle up and stay warm! 🧥 Winter vibes! ❄️😊"
+      ],
+      'hot': [
+        "Hot weather! Stay hydrated and cool! 💧🌡️ Ice cream time! 🍦",
+        "It's hot out there! Stay in the shade and drink lots of water! ☀️💧",
+        "Hot days are perfect for swimming or staying in the AC! 🏊‍♀️❄️ Stay cool! 😊"
+      ],
       
       // Goodbye
       'bye': [
@@ -203,6 +233,48 @@ exports.handler = async function(event, context) {
         "See you! It was fun chatting! 👋",
         "See you later! Take care! 😊",
         "See you! Come back anytime! 👋"
+      ],
+      
+      // Common responses
+      'ok': [
+        "Ok! 😊",
+        "Alright! 👍",
+        "Got it! 😄"
+      ],
+      'okay': [
+        "Okay! 😊",
+        "Alright! 👍",
+        "Got it! 😄"
+      ],
+      'yes': [
+        "Yes! 😊",
+        "Yep! 👍",
+        "Absolutely! 😄"
+      ],
+      'no': [
+        "No worries! 😊",
+        "That's ok! 👍",
+        "No problem! 😄"
+      ],
+      'thanks': [
+        "You're welcome! 😊",
+        "No problem! 👍",
+        "Anytime! 😄"
+      ],
+      'thank you': [
+        "You're welcome! 😊",
+        "No problem! 👍",
+        "Anytime! 😄"
+      ],
+      'cool': [
+        "Cool! 😎",
+        "Awesome! 😊",
+        "Nice! 👍"
+      ],
+      'nice': [
+        "Nice! 😊",
+        "Cool! 😎",
+        "Awesome! 👍"
       ]
     };
 
@@ -234,12 +306,13 @@ exports.handler = async function(event, context) {
       for (const { key, name } of apiKeys) {
         console.log(`Trying ${name} API key...`);
         
-        // Try up to 2 times for each key with different timeouts
+        // Try up to 2 times for each key with shorter timeouts to avoid function timeout
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const controller = new AbortController();
-            // First attempt: 15 seconds, second attempt: 20 seconds
-            const timeout = attempt === 1 ? 15000 : 20000;
+            // Reduced timeouts: First attempt: 8 seconds, second attempt: 12 seconds
+            // This keeps us well under Netlify's function timeout
+            const timeout = attempt === 1 ? 8000 : 12000;
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
             console.log(`${name} API attempt ${attempt} with ${timeout/1000}s timeout...`);
@@ -257,14 +330,14 @@ exports.handler = async function(event, context) {
                     role: "system", 
                     content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
                   },
-                  // Include recent chat history (last 8 messages to reduce token load)
-                  ...(history && history.length > 0 ? history.slice(-8).map(msg => ({
+                  // Include recent chat history (last 6 messages to reduce token load further)
+                  ...(history && history.length > 0 ? history.slice(-6).map(msg => ({
                     role: msg.role,
                     content: msg.content
                   })) : []),
                   { role: "user", content: message }
                 ],
-                max_tokens: 60, // Reduced from 80 to speed up response
+                max_tokens: 50, // Further reduced to speed up response
                 temperature: 0.7
               }),
               signal: controller.signal
@@ -306,7 +379,7 @@ exports.handler = async function(event, context) {
                 break; // Try next key
               }
 
-              // Check for timeout errors
+              // Check for timeout errors (408)
               if (res.status === 408 || rawErrorText.includes('timeout')) {
                 console.log(`Timeout detected for ${name} key on attempt ${attempt}`);
                 if (attempt < 2) {
@@ -320,6 +393,18 @@ exports.handler = async function(event, context) {
                   };
                   break; // Try next key
                 }
+              }
+
+              // Check for service unavailable (503) or other server errors
+              if (res.status >= 500) {
+                console.log(`Server error (${res.status}) detected for ${name} key`);
+                lastError = { 
+                  type: 'server_error', 
+                  message: `Server error: ${res.status}`, 
+                  key: name,
+                  status: res.status
+                };
+                break; // Try next key
               }
 
               // Try to parse JSON error response
@@ -453,9 +538,12 @@ exports.handler = async function(event, context) {
     // Check for local responses
     const normalizedMessage = message.toLowerCase().trim();
     
+    console.log('Checking local responses for message:', normalizedMessage);
+    console.log('Available local response keys:', Object.keys(localResponses));
+    
     // Check exact matches first
     if (localResponses[normalizedMessage]) {
-      console.log('Using local response for:', normalizedMessage);
+      console.log('Using local response for exact match:', normalizedMessage);
       return {
         statusCode: 200,
         headers: {
@@ -468,22 +556,43 @@ exports.handler = async function(event, context) {
       };
     }
     
-    // Check for partial matches (e.g., "hello there" should match "hello")
+    // Check for partial matches (e.g., "hello there" should match "hello", "it's raining" should match "raining")
     for (const [key, responses] of Object.entries(localResponses)) {
-      if (normalizedMessage.includes(key) && key.length > 2) { // Only match words longer than 2 chars
-        console.log('Using local response for partial match:', key);
-        return {
-          statusCode: 200,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            response: getRandomResponse(responses)
-          })
-        };
+      if (key.length > 2) { // Only match words longer than 2 chars
+        // Check if the key appears as a whole word in the message
+        const wordBoundaryRegex = new RegExp(`\\b${key}\\b`, 'i');
+        if (wordBoundaryRegex.test(normalizedMessage)) {
+          console.log('Using local response for word match:', key, 'in message:', normalizedMessage);
+          return {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              response: getRandomResponse(responses)
+            })
+          };
+        }
+        
+        // Also check for simple substring match as fallback
+        if (normalizedMessage.includes(key)) {
+          console.log('Using local response for substring match:', key, 'in message:', normalizedMessage);
+          return {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              response: getRandomResponse(responses)
+            })
+          };
+        }
       }
     }
+    
+    console.log('No local response found, proceeding to API call');
 
     // Test mode - return simple response without API call
     if (process.env.TEST_MODE === 'true') {
@@ -622,8 +731,24 @@ exports.handler = async function(event, context) {
         };
       }
       
-      // Handle timeout errors
+      // Handle timeout errors with a more helpful response
       if (error.type === 'timeout') {
+        // Try to provide a contextual response based on the message
+        let fallbackResponse = "Sorry, I'm taking longer than usual to respond. This sometimes happens when the AI servers are busy. Please try again in a few seconds! 😊";
+        
+        // Check if we can provide a more specific response based on the message content
+        const normalizedMessage = message.toLowerCase().trim();
+        
+        if (normalizedMessage.includes('rain') || normalizedMessage.includes('raining')) {
+          fallbackResponse = "Rainy days can be cozy! ☔ Perfect for staying in and chatting! 😊 (Note: My AI brain is a bit slow right now, but I'm here!)";
+        } else if (normalizedMessage.includes('weather')) {
+          fallbackResponse = "I can't check the weather right now, but I hope it's nice where you are! 🌤️ (My AI servers are being slow today!)";
+        } else if (normalizedMessage.includes('hello') || normalizedMessage.includes('hi') || normalizedMessage.includes('hey')) {
+          fallbackResponse = "Hey there! 😊 How's it going? (Sorry I'm responding slowly - my AI brain is overloaded!)";
+        } else if (normalizedMessage.includes('how are you')) {
+          fallbackResponse = "I'm doing great! Thanks for asking! How about you? 😊 (My responses are a bit slow today due to server load!)";
+        }
+        
         return {
           statusCode: 408,
           headers: {
@@ -632,12 +757,27 @@ exports.handler = async function(event, context) {
           },
           body: JSON.stringify({ 
             error: "Request timeout",
-            response: "Sorry, I'm taking longer than usual to respond. This sometimes happens when the AI servers are busy. Please try again in a few seconds! 😊"
+            response: fallbackResponse
           })
         };
       }
       
-      // Handle other errors
+      // Handle server errors (5xx)
+      if (error.type === 'server_error') {
+        return {
+          statusCode: 503,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ 
+            error: "Service temporarily unavailable",
+            response: "The AI servers are having some issues right now. I'm still here though! 😊 Try again in a few minutes!"
+          })
+        };
+      }
+      
+      // Handle other errors with a friendly fallback
       return {
         statusCode: 500,
         headers: {
@@ -646,7 +786,7 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "API Error",
-          response: "I'm having trouble connecting right now. Please try again in a moment."
+          response: "I'm having trouble connecting right now, but I'm still here! 😊 Try again in a moment or just chat with me about something else!"
         })
       };
     }
