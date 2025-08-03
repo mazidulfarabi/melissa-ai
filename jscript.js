@@ -364,7 +364,7 @@ $(function () {
     try {
       console.log('Attempting to play chat.mp3...');
       var audio = new Audio('chat.mp3');
-      audio.volume = 0.3; // Set volume to 30%
+      audio.volume = 1; // Set volume to 100%
       
       // Add event listeners for debugging
       audio.addEventListener('loadstart', function() {

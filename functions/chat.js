@@ -234,181 +234,215 @@ exports.handler = async function(event, context) {
       for (const { key, name } of apiKeys) {
         console.log(`Trying ${name} API key...`);
         
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+        // Try up to 2 times for each key with different timeouts
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const controller = new AbortController();
+            // First attempt: 15 seconds, second attempt: 20 seconds
+            const timeout = attempt === 1 ? 15000 : 20000;
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${key}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: "mistralai/mistral-7b-instruct:free",
-              messages: [
-                { 
-                  role: "system", 
-                  content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
-                },
-                // Include recent chat history (last 10 messages to avoid token limits)
-                ...(history && history.length > 0 ? history.slice(-10).map(msg => ({
-                  role: msg.role,
-                  content: msg.content
-                })) : []),
-                { role: "user", content: message }
-              ],
-              max_tokens: 80,
-              temperature: 0.7
-            }),
-            signal: controller.signal
-          });
+            console.log(`${name} API attempt ${attempt} with ${timeout/1000}s timeout...`);
 
-          clearTimeout(timeoutId);
-          console.log(`${name} API Response Status:`, res.status);
+            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${key}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "mistralai/mistral-7b-instruct:free",
+                messages: [
+                  { 
+                    role: "system", 
+                    content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
+                  },
+                  // Include recent chat history (last 8 messages to reduce token load)
+                  ...(history && history.length > 0 ? history.slice(-8).map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                  })) : []),
+                  { role: "user", content: message }
+                ],
+                max_tokens: 60, // Reduced from 80 to speed up response
+                temperature: 0.7
+              }),
+              signal: controller.signal
+            });
 
-          if (!res.ok) {
-            const errorText = await res.text();
-            console.error(`${name} API Error:`, errorText);
+            clearTimeout(timeoutId);
+            console.log(`${name} API Response Status:`, res.status);
 
-            // Extract reset time from headers if available
-            let resetTime = null;
-            const resetHeader = res.headers.get('X-RateLimit-Reset');
-            if (resetHeader) {
+            if (!res.ok) {
+              const errorText = await res.text();
+              console.error(`${name} API Error:`, errorText);
+
+              // Extract reset time from headers if available
+              let resetTime = null;
+              const resetHeader = res.headers.get('X-RateLimit-Reset');
+              if (resetHeader) {
+                try {
+                  // Convert Unix timestamp to Date
+                  resetTime = new Date(parseInt(resetHeader));
+                  console.log(`${name} API Reset time from header:`, resetTime);
+                } catch (e) {
+                  console.log('Error parsing reset header:', e.message);
+                }
+              }
+
+              // Check for rate limit errors
+              const rawErrorText = errorText.toLowerCase();
+              if (rawErrorText.includes('rate limit') || 
+                  rawErrorText.includes('limit exceeded') || 
+                  rawErrorText.includes('free-models-per-day') ||
+                  rawErrorText.includes('429')) {
+                console.log(`Rate limit detected for ${name} key, trying next key...`);
+                lastError = { 
+                  type: 'rate_limit', 
+                  message: errorText, 
+                  key: name,
+                  resetTime: resetTime
+                };
+                break; // Try next key
+              }
+
+              // Check for timeout errors
+              if (res.status === 408 || rawErrorText.includes('timeout')) {
+                console.log(`Timeout detected for ${name} key on attempt ${attempt}`);
+                if (attempt < 2) {
+                  console.log(`Retrying ${name} key with longer timeout...`);
+                  continue; // Try again with longer timeout
+                } else {
+                  lastError = { 
+                    type: 'timeout', 
+                    message: 'Request timeout after retries', 
+                    key: name 
+                  };
+                  break; // Try next key
+                }
+              }
+
+              // Try to parse JSON error response
               try {
-                // Convert Unix timestamp to Date
-                resetTime = new Date(parseInt(resetHeader));
-                console.log(`${name} API Reset time from header:`, resetTime);
-              } catch (e) {
-                console.log('Error parsing reset header:', e.message);
+                const errorData = JSON.parse(errorText);
+                if (errorData.error && errorData.error.message) {
+                  const errorMessage = errorData.error.message.toLowerCase();
+                  if (errorMessage.includes('free-models-per-day') || 
+                      errorMessage.includes('rate limit') || 
+                      errorMessage.includes('limit exceeded') ||
+                      errorMessage.includes('429')) {
+                    console.log(`Rate limit detected for ${name} key in parsed JSON, trying next key...`);
+                    lastError = { 
+                      type: 'rate_limit', 
+                      message: errorText, 
+                      key: name,
+                      resetTime: resetTime
+                    };
+                    break; // Try next key
+                  }
+                  
+                  if (errorMessage.includes('timeout') || res.status === 408) {
+                    console.log(`Timeout detected for ${name} key in parsed JSON on attempt ${attempt}`);
+                    if (attempt < 2) {
+                      console.log(`Retrying ${name} key with longer timeout...`);
+                      continue; // Try again with longer timeout
+                    } else {
+                      lastError = { 
+                        type: 'timeout', 
+                        message: 'Request timeout after retries', 
+                        key: name 
+                      };
+                      break; // Try next key
+                    }
+                  }
+                }
+              } catch (parseError) {
+                // Continue with original error message if parsing fails
+              }
+
+              // For other errors, try next key
+              lastError = { 
+                type: 'api_error', 
+                message: errorText, 
+                key: name,
+                status: res.status
+              };
+              break; // Try next key
+            }
+
+            // Success! Parse the response
+            const data = await res.json();
+            console.log(`${name} API Success:`, JSON.stringify(data).substring(0, 200) + '...');
+
+            // Success! Return the response
+            let responseContent = data.choices[0].message.content || "";
+            
+            // If response was truncated (indicated by finish_reason), add a note
+            if (data.choices[0].finish_reason === 'length') {
+              console.log('Response was truncated, adding completion note');
+              responseContent = responseContent.trim();
+              if (!responseContent.endsWith('.')) {
+                responseContent += '.';
               }
             }
 
-            // Check for rate limit errors
-            const rawErrorText = errorText.toLowerCase();
-            if (rawErrorText.includes('rate limit') || 
-                rawErrorText.includes('limit exceeded') || 
-                rawErrorText.includes('free-models-per-day') ||
-                rawErrorText.includes('429')) {
-              console.log(`Rate limit detected for ${name} key, trying next key...`);
-              lastError = { 
-                type: 'rate_limit', 
-                message: errorText, 
-                key: name,
-                resetTime: resetTime
-              };
-              continue; // Try next key
-            }
+            return { success: true, response: responseContent, key: name };
 
-            // Try to parse JSON error response
+          } catch (error) {
+            clearTimeout(timeoutId);
+            console.error(`${name} API Error:`, error.message);
+            
+            // Check for timeout errors in the catch block
+            if (error.name === 'AbortError') {
+              console.log(`Timeout detected for ${name} key on attempt ${attempt}`);
+              if (attempt < 2) {
+                console.log(`Retrying ${name} key with longer timeout...`);
+                continue; // Try again with longer timeout
+              } else {
+                lastError = { type: 'timeout', message: 'Request timeout after retries', key: name };
+                break; // Try next key
+              }
+            }
+            
+            // Check for rate limit errors in the catch block
+            let errorMessage = error.message.toLowerCase();
+            
             try {
-              const errorData = JSON.parse(errorText);
-              if (errorData.error && errorData.error.message) {
-                const errorMessage = errorData.error.message.toLowerCase();
-                if (errorMessage.includes('free-models-per-day') || 
-                    errorMessage.includes('rate limit') || 
-                    errorMessage.includes('limit exceeded') ||
-                    errorMessage.includes('429')) {
-                  console.log(`Rate limit detected for ${name} key in parsed JSON, trying next key...`);
-                  
-                  // Try to extract reset time from error metadata if available
-                  if (errorData.error.metadata && errorData.error.metadata.headers && errorData.error.metadata.headers['X-RateLimit-Reset']) {
-                    try {
-                      resetTime = new Date(parseInt(errorData.error.metadata.headers['X-RateLimit-Reset']));
-                      console.log(`${name} API Reset time from error metadata:`, resetTime);
-                    } catch (e) {
-                      console.log('Error parsing reset time from metadata:', e.message);
-                    }
-                  }
-                  
-                  lastError = { 
-                    type: 'rate_limit', 
-                    message: errorText, 
-                    key: name,
-                    resetTime: resetTime
-                  };
-                  continue; // Try next key
+              if (error.message.includes('{') && error.message.includes('}')) {
+                const parsedError = JSON.parse(error.message);
+                if (parsedError.error && parsedError.error.message) {
+                  errorMessage = parsedError.error.message.toLowerCase();
                 }
               }
             } catch (parseError) {
-              console.log('Error parsing JSON:', parseError.message);
+              // Continue with original error message if parsing fails
             }
             
-            // If we get here, it's not a rate limit error
-            lastError = { type: 'api_error', message: errorText, key: name, status: res.status };
-            continue; // Try next key
-          }
-
-          const data = await res.json();
-          console.log(`${name} API Success:`, JSON.stringify(data).substring(0, 200) + '...');
-
-          if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.error(`Invalid API response format from ${name} key:`, JSON.stringify(data));
-            lastError = { type: 'invalid_response', message: 'Invalid response format', key: name };
-            continue; // Try next key
-          }
-
-          // Success! Return the response
-          let responseContent = data.choices[0].message.content || "";
-          
-          // If response was truncated (indicated by finish_reason), add a note
-          if (data.choices[0].finish_reason === 'length') {
-            console.log('Response was truncated, adding completion note');
-            responseContent = responseContent.trim();
-            if (!responseContent.endsWith('.')) {
-              responseContent += '.';
+            if (errorMessage.includes('rate limit') || 
+                errorMessage.includes('limit exceeded') || 
+                errorMessage.includes('free-models-per-day') ||
+                errorMessage.includes('429')) {
+              console.log(`Rate limit detected for ${name} key in catch block, trying next key...`);
+              lastError = { type: 'rate_limit', message: error.message, key: name };
+              break; // Try next key
             }
-          }
-
-          return { success: true, response: responseContent, key: name };
-
-        } catch (error) {
-          clearTimeout(timeoutId);
-          console.error(`${name} API Error:`, error.message);
-          
-          // Check for rate limit errors in the catch block
-          let errorMessage = error.message.toLowerCase();
-          
-          try {
-            if (error.message.includes('{') && error.message.includes('}')) {
-              const parsedError = JSON.parse(error.message);
-              if (parsedError.error && parsedError.error.message) {
-                errorMessage = parsedError.error.message.toLowerCase();
-              }
+            
+            if (error.response && error.response.status === 429) {
+              console.log(`Rate limit detected for ${name} key via response status, trying next key...`);
+              lastError = { type: 'rate_limit', message: error.message, key: name };
+              break; // Try next key
             }
-          } catch (parseError) {
-            // Continue with original error message if parsing fails
+            
+            // Network errors might be rate limit related
+            if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
+              console.log(`Network error detected for ${name} key, might be rate limit related`);
+              lastError = { type: 'rate_limit', message: error.message, key: name };
+              break; // Try next key
+            }
+            
+            lastError = { type: 'unknown', message: error.message, key: name };
+            break; // Try next key
           }
-          
-          if (errorMessage.includes('rate limit') || 
-              errorMessage.includes('limit exceeded') || 
-              errorMessage.includes('free-models-per-day') ||
-              errorMessage.includes('429')) {
-            console.log(`Rate limit detected for ${name} key in catch block, trying next key...`);
-            lastError = { type: 'rate_limit', message: error.message, key: name };
-            continue; // Try next key
-          }
-          
-          if (error.response && error.response.status === 429) {
-            console.log(`Rate limit detected for ${name} key via response status, trying next key...`);
-            lastError = { type: 'rate_limit', message: error.message, key: name };
-            continue; // Try next key
-          }
-          
-          if (error.name === 'AbortError') {
-            lastError = { type: 'timeout', message: 'Request timeout', key: name };
-            continue; // Try next key
-          }
-          
-          // Network errors might be rate limit related
-          if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
-            console.log(`Network error detected for ${name} key, might be rate limit related`);
-            lastError = { type: 'rate_limit', message: error.message, key: name };
-            continue; // Try next key
-          }
-          
-          lastError = { type: 'unknown', message: error.message, key: name };
-          continue; // Try next key
         }
       }
 
@@ -598,7 +632,7 @@ exports.handler = async function(event, context) {
           },
           body: JSON.stringify({ 
             error: "Request timeout",
-            response: "The AI is taking too long to respond. Please try again."
+            response: "Sorry, I'm taking longer than usual to respond. This sometimes happens when the AI servers are busy. Please try again in a few seconds! 😊"
           })
         };
       }
