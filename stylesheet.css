@@ -12,7 +12,12 @@ html, body{
 }
 
 body {
+  background-image: url("https://images.template.net/80899/free-transparent-leaves-vector-yjdfm.jpg");
   overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 .container {
