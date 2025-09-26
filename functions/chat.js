@@ -283,6 +283,41 @@ exports.handler = async function(event, context) {
       return responses[Math.floor(Math.random() * responses.length)];
     };
 
+    // Function to handle long responses by splitting them appropriately
+    const handleLongResponse = (response, maxLength = 600) => {
+      if (response.length <= maxLength) {
+        return response;
+      }
+      
+      // Try to split at sentence boundaries
+      const sentences = response.split(/[.!?]+/);
+      let result = '';
+      
+      for (const sentence of sentences) {
+        if ((result + sentence).length <= maxLength) {
+          result += sentence + '.';
+        } else {
+          break;
+        }
+      }
+      
+      if (result.length < 100) {
+        // If we couldn't get a meaningful response, just truncate at word boundary
+        const words = response.split(' ');
+        result = '';
+        for (const word of words) {
+          if ((result + word + ' ').length <= maxLength) {
+            result += word + ' ';
+          } else {
+            break;
+          }
+        }
+        result = result.trim() + '...';
+      }
+      
+      return result + '\n\n(সম্পূর্ণ উত্তর পেতে "আরও বিস্তারিত বলুন" লিখুন)';
+    };
+
     // Helper function to make API call with fallback
     const makeApiCallWithFallback = async (message, history) => {
       const apiKeys = [];
@@ -310,9 +345,9 @@ exports.handler = async function(event, context) {
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const controller = new AbortController();
-            // Reduced timeouts: First attempt: 8 seconds, second attempt: 12 seconds
-            // This keeps us well under Netlify's function timeout
-            const timeout = attempt === 1 ? 8000 : 12000;
+            // Increased timeouts for vision model: First attempt: 15 seconds, second attempt: 25 seconds
+            // Vision models need more time to process images and generate detailed responses
+            const timeout = attempt === 1 ? 15000 : 25000;
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
             console.log(`${name} API attempt ${attempt} with ${timeout/1000}s timeout...`);
@@ -321,7 +356,7 @@ exports.handler = async function(event, context) {
             let messages = [
               { 
                 role: "system", 
-                content: "আপনি একজন গাছের রোগ বিশেষজ্ঞ। আপলোড করা গাছের ছবি বিশ্লেষণ করে রোগ, পোকামাকড় বা স্বাস্থ্য সমস্যা সনাক্ত করুন। নির্দিষ্ট রোগ নির্ণয় এবং চিকিৎসার পরামর্শ দিন। বাংলা ভাষায় উত্তর দিন।" 
+                content: "আপনি একজন গাছের রোগ বিশেষজ্ঞ। গাছের ছবি দেখে রোগ নির্ণয় করুন। রোগের নাম, লক্ষণ, কারণ এবং চিকিৎসা পদ্ধতি বলুন। সংক্ষেপে কিন্তু সম্পূর্ণ উত্তর দিন।" 
               },
               // Include recent chat history (last 6 messages to reduce token load further)
               ...(history && history.length > 0 ? history.slice(-6).map(msg => ({
@@ -363,7 +398,7 @@ exports.handler = async function(event, context) {
               body: JSON.stringify({
                 model: "meta-llama/llama-3.2-11b-vision-instruct",
                 messages: messages,
-                max_tokens: 300,
+                max_tokens: 800,
                 temperature: 0.3
               }),
               signal: controller.signal
@@ -488,13 +523,22 @@ exports.handler = async function(event, context) {
             // Success! Return the response
             let responseContent = data.choices[0].message.content || "";
             
-            // If response was truncated (indicated by finish_reason), add a note
+            // Handle response length and truncation
             if (data.choices[0].finish_reason === 'length') {
-              console.log('Response was truncated, adding completion note');
+              console.log('Response was truncated by model, adding completion note');
               responseContent = responseContent.trim();
               if (!responseContent.endsWith('.')) {
                 responseContent += '.';
               }
+              responseContent += '\n\n(উত্তরটি সম্পূর্ণ নয় - আরও বিস্তারিত জানতে আবার প্রশ্ন করুন)';
+            } else {
+              // Use our function to handle potentially long responses
+              responseContent = handleLongResponse(responseContent);
+            }
+            
+            // If response is very short and we have an image, suggest asking for more details
+            if (image && responseContent.length < 100) {
+              responseContent += '\n\nআরও বিস্তারিত বিশ্লেষণের জন্য "এই গাছের রোগের চিকিৎসা পদ্ধতি বলুন" বা "রোগের কারণ কী" এর মতো প্রশ্ন করুন।';
             }
 
             return { success: true, response: responseContent, key: name };
