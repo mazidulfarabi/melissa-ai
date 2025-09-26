@@ -2,13 +2,16 @@
 const API_ENDPOINT = '/api/chat'; // This will be handled by Netlify Functions
 
 // Chat history management
-const CHAT_HISTORY_KEY = 'melissa_chat_history';
+const CHAT_HISTORY_KEY = 'plant_disease_chat_history';
 const MAX_HISTORY_LENGTH = 50; // Maximum number of messages to store
 
 // Rate limit management
-const RATE_LIMIT_KEY = 'melissa_rate_limit';
+const RATE_LIMIT_KEY = 'plant_disease_rate_limit';
 let isRateLimited = false;
 let rateLimitTimer = null;
+
+// Image management
+let selectedImage = null;
 
 function chatBot() {
   this.input;
@@ -222,17 +225,24 @@ function chatBot() {
     $('.input-area').removeClass('rate-limited');
   };
   
-  this.respondTo = async function (input) {
+  this.respondTo = async function (input, imageData = null) {
     try {
+      const requestBody = { 
+        message: input, 
+        history: this.chatHistory 
+      };
+      
+      // Add image data if available
+      if (imageData) {
+        requestBody.image = imageData;
+      }
+
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          message: input, 
-          history: this.chatHistory 
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -240,24 +250,24 @@ function chatBot() {
       if (!response.ok) {
         // Check if it's a rate limit error
         if (response.status === 429 || 
-            (data.response && data.response.includes("I'm feeling very tired"))) {
+            (data.response && data.response.includes("আমি খুব ক্লান্ত"))) {
           this.setRateLimit(data.resetTime); // Pass resetTime from API
-          throw new Error(data.response || "I'm feeling very tired tonight, will talk tomorrow xoxo 😴");
+          throw new Error(data.response || "আমি আজ রাতে খুব ক্লান্ত, আগামীকাল কথা হবে 😴");
         }
         // Return the actual error message from the backend
-        throw new Error(data.response || "I'm having trouble connecting right now. Please try again in a moment.");
+        throw new Error(data.response || "এখনই সংযোগ করতে সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন।");
       }
 
-      return data.response || "I'm sorry, I didn't get that.";
+      return data.response || "দুঃখিত, আমি বুঝতে পারিনি।";
     } catch (error) {
       console.error('Error calling API:', error);
       // If it's our custom error message, throw it as is
-      if (error.message && (error.message.includes("I'm feeling very tired") || 
-                           error.message.includes("I'm having trouble connecting"))) {
+      if (error.message && (error.message.includes("আমি খুব ক্লান্ত") || 
+                           error.message.includes("সংযোগ করতে সমস্যা"))) {
         throw error;
       }
       // Otherwise throw a generic error
-      throw new Error("I'm having trouble connecting right now. Please try again in a moment.");
+      throw new Error("এখনই সংযোগ করতে সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন।");
     }
   };
 
@@ -266,11 +276,44 @@ function chatBot() {
   };
 }
 
+// Image processing functions
+function convertImageToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      resolve(e.target.result);
+    };
+    reader.onerror = function(error) {
+      reject(error);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function showImagePreview(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    $('#preview-img').attr('src', e.target.result);
+    $('#image-preview').show();
+  };
+  reader.readAsDataURL(file);
+}
+
+function hideImagePreview() {
+  $('#image-preview').hide();
+  $('#preview-img').attr('src', '');
+  selectedImage = null;
+}
+
 $(function () {
   var bot = new chatBot();
   var chat = $('.chat');
   var input = $('.input-field');
   var sendBtn = $('.send-btn');
+  var imageBtn = $('.image-btn');
+  var imageUpload = $('#image-upload');
+  var imagePreview = $('#image-preview');
+  var removeImageBtn = $('.remove-image-btn');
   var busy = $('.busy');
   var resetBtn = $('.reset-btn');
   
@@ -280,23 +323,48 @@ $(function () {
   // Check rate limit status on page load
   bot.checkRateLimit();
 
-  // Listen for Melissa coming back online
-  $(document).on('melissaBackOnline', function() {
-    updateChat('other', "Good morning! I'm back online and ready to chat! 😊");
-    bot.addToHistory('assistant', "Good morning! I'm back online and ready to chat! 😊");
+  // Listen for AI coming back online
+  $(document).on('plantDiseaseBackOnline', function() {
+    updateChat('other', "সুপ্রভাত! আমি আবার অনলাইনে এসেছি এবং গাছের রোগ নির্ণয়ে সাহায্য করতে প্রস্তুত! 😊");
+    bot.addToHistory('assistant', "সুপ্রভাত! আমি আবার অনলাইনে এসেছি এবং গাছের রোগ নির্ণয়ে সাহায্য করতে প্রস্তুত! 😊");
   });
 
-  var updateChat = function(party, message) {
+  // Image upload handlers
+  imageBtn.on('click', function() {
+    imageUpload.click();
+  });
+
+  imageUpload.on('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        selectedImage = file;
+        showImagePreview(file);
+      } else {
+        alert('দয়া করে একটি বৈধ ছবি ফাইল নির্বাচন করুন।');
+      }
+    }
+  });
+
+  removeImageBtn.on('click', function() {
+    hideImagePreview();
+    imageUpload.val('');
+  });
+
+  var updateChat = function(party, message, imageUrl = null) {
     var time = new Date().toLocaleTimeString('en-US', { 
       hour12: true, 
       hour: "numeric", 
       minute: "numeric" 
     });
     
+    var imageHtml = imageUrl ? `<div class="chat-image"><img src="${imageUrl}" alt="Uploaded image" style="max-width: 200px; border-radius: 8px; margin: 8px 0;"></div>` : '';
+    
     var messageHtml = `
       <div class="${party}">
-        <div class="party">${party === 'you' ? 'You' : 'Melissa'}</div>
+        <div class="party">${party === 'you' ? 'আপনি' : 'গাছের রোগ নির্ণয় AI'}</div>
         <div class="msg-bubble">
+          ${imageHtml}
           <div class="text">${message}</div>
           <div class="time">${time}</div>
         </div>
@@ -309,27 +377,42 @@ $(function () {
 
   var submitChat = async function () {
     var inputText = input.val().trim();
-    if (!inputText) return;
+    if (!inputText && !selectedImage) return;
 
     // Check if rate limited
     if (isRateLimited) {
       return; // Don't send message if rate limited
     }
 
-    // Clear input
+    // Prepare image data if available
+    var imageData = null;
+    var imageUrl = null;
+    if (selectedImage) {
+      try {
+        imageData = await convertImageToBase64(selectedImage);
+        imageUrl = imageData; // For display in chat
+      } catch (error) {
+        console.error('Error converting image:', error);
+        alert('ছবি প্রক্রিয়াকরণে সমস্যা হয়েছে।');
+        return;
+      }
+    }
+
+    // Clear input and image
     input.val('');
+    hideImagePreview();
     
     // Update UI with user message
-    updateChat('you', inputText);
-    bot.addToHistory('user', inputText);
+    updateChat('you', inputText || 'ছবি আপলোড করা হয়েছে', imageUrl);
+    bot.addToHistory('user', inputText || 'ছবি আপলোড করা হয়েছে');
     
-    // Show "Melissa is typing" indicator
-    busy.text("Melissa is typing...");
+    // Show typing indicator
+    busy.text("গাছের রোগ নির্ণয় AI টাইপ করছে...");
     busy.show();
     
     try {
       // Get bot response
-      var reply = await bot.respondTo(inputText);
+      var reply = await bot.respondTo(inputText || 'এই গাছের ছবি বিশ্লেষণ করুন', imageData);
       
       // Hide typing indicator
       busy.hide();
@@ -349,7 +432,7 @@ $(function () {
       updateChat('other', error.message);
       
       // If it's a rate limit error, don't show it again
-      if (error.message && error.message.includes("I'm feeling very tired")) {
+      if (error.message && error.message.includes("আমি খুব ক্লান্ত")) {
         // The rate limit is already handled by setRateLimit()
         // Don't add this message to history to prevent showing it again
         return;
@@ -407,10 +490,11 @@ $(function () {
   resetBtn.on('click', function() {
     bot.clearHistory();
     chat.empty();
+    hideImagePreview();
     // Force reset rate limit status (for when API keys are changed)
     bot.forceResetRateLimit();
-    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
-    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
   });
 
   // Auto-resize textarea
@@ -421,8 +505,8 @@ $(function () {
 
   // Initialize chat
   if (bot.chatHistory.length === 0) {
-    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
-    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
   } else {
     // Restore chat history to UI
     bot.chatHistory.forEach(function(msg) {
@@ -431,8 +515,8 @@ $(function () {
   }
 
   // Global function for debugging - users can call this from console
-  window.resetMelissaRateLimit = function() {
-    console.log('Force resetting Melissa rate limit...');
+  window.resetPlantDiseaseRateLimit = function() {
+    console.log('Force resetting Plant Disease AI rate limit...');
     bot.forceResetRateLimit();
     console.log('Rate limit reset complete. You can now test with new API keys.');
   };

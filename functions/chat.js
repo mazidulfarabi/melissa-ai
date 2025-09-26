@@ -48,7 +48,7 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "Configuration error",
-          response: "I'm not properly configured right now. Please contact support."
+          response: "আমি এখন সঠিকভাবে কনফিগার করা নেই। দয়া করে সাপোর্টে যোগাযোগ করুন।"
         })
       };
     }
@@ -67,21 +67,21 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "Invalid API key format",
-          response: "My API keys are not properly configured. Please check the setup."
+          response: "আমার API কীগুলি সঠিকভাবে কনফিগার করা নেই। দয়া করে সেটআপ চেক করুন।"
         })
       };
     }
 
-    const { message, history } = JSON.parse(event.body || '{}');
+    const { message, history, image } = JSON.parse(event.body || '{}');
 
-    if (!message) {
+    if (!message && !image) {
       return {
         statusCode: 400,
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ error: "Message is required" })
+        body: JSON.stringify({ error: "Message or image is required" })
       };
     }
 
@@ -95,78 +95,78 @@ exports.handler = async function(event, context) {
     const localResponses = {
       // Greetings
       'hello': [
-        "Hey there! 😊 How's it going?",
-        "Hi! Nice to see you! 👋",
-        "Hello! How are you doing today? 😄"
+        "হ্যালো! 😊 কেমন আছেন?",
+        "হাই! দেখে ভালো লাগছে! 👋",
+        "হ্যালো! আজ কেমন কাটছে? 😄"
       ],
       'hi': [
-        "Hey! What's up? 😊",
-        "Hi there! How's your day going? 👋",
-        "Hello! Nice to chat with you! 😄"
+        "হাই! কি অবস্থা? 😊",
+        "হ্যালো! দিন কেমন যাচ্ছে? 👋",
+        "হাই! কথা বলে ভালো লাগছে! 😄"
       ],
       'hey': [
-        "Hey! How are you? 😊",
-        "Hi there! What's new? 👋",
-        "Hey! Great to see you! 😄"
+        "হাই! কেমন আছেন? 😊",
+        "হ্যালো! কি খবর? 👋",
+        "হাই! দেখে ভালো লাগছে! 😄"
       ],
       'good morning': [
-        "Good morning! Hope you're having a great start to your day! ☀️",
-        "Morning! How's your day going so far? 🌅",
-        "Good morning! Ready to chat? 😊"
+        "সুপ্রভাত! আশা করি দিনের শুরুটা ভালো যাচ্ছে! ☀️",
+        "সকাল! এখন পর্যন্ত কেমন যাচ্ছে? 🌅",
+        "সুপ্রভাত! কথা বলতে প্রস্তুত? 😊"
       ],
       'good afternoon': [
-        "Good afternoon! Hope your day is going well! 🌞",
-        "Afternoon! How's everything? 😊",
-        "Good afternoon! Nice to see you! 👋"
+        "শুভ বিকাল! আশা করি দিনটা ভালো যাচ্ছে! 🌞",
+        "বিকাল! সব কেমন? 😊",
+        "শুভ বিকাল! দেখে ভালো লাগছে! 👋"
       ],
       'good evening': [
-        "Good evening! How was your day? 🌙",
-        "Evening! Hope you had a great day! 😊",
-        "Good evening! Ready to chat? 👋"
+        "শুভ সন্ধ্যা! দিনটা কেমন ছিল? 🌙",
+        "সন্ধ্যা! আশা করি ভালো দিন কাটিয়েছেন! 😊",
+        "শুভ সন্ধ্যা! কথা বলতে প্রস্তুত? 👋"
       ],
       'good night': [
-        "Good night! Sweet dreams! 😴",
-        "Night! Sleep well! 🌙",
-        "Good night! See you tomorrow! 😊"
+        "শুভ রাত্রি! মিষ্টি স্বপ্ন! 😴",
+        "রাত! ভালো ঘুম! 🌙",
+        "শুভ রাত্রি! আগামীকাল দেখা হবে! 😊"
       ],
       
       // How are you variations
       'how are you': [
-        "I'm doing great! Thanks for asking! How about you? 😊",
-        "I'm awesome! How are you doing? 😄",
-        "I'm feeling good! How's your day going? 😊"
+        "আমি খুব ভালো! জিজ্ঞেস করার জন্য ধন্যবাদ! আপনি কেমন? 😊",
+        "আমি দারুণ! আপনি কেমন আছেন? 😄",
+        "আমি ভালো আছি! আপনার দিন কেমন যাচ্ছে? 😊"
       ],
       'how r u': [
-        "I'm good! How about you? 😊",
-        "I'm great! How are you doing? 😄",
-        "I'm doing well! How's it going? 😊"
+        "আমি ভালো! আপনি কেমন? 😊",
+        "আমি দারুণ! আপনি কেমন আছেন? 😄",
+        "আমি ভালো আছি! কেমন যাচ্ছে? 😊"
       ],
       'how are u': [
-        "I'm good! How about you? 😊",
-        "I'm great! How are you doing? 😄",
-        "I'm doing well! How's it going? 😊"
+        "আমি ভালো! আপনি কেমন? 😊",
+        "আমি দারুণ! আপনি কেমন আছেন? 😄",
+        "আমি ভালো আছি! কেমন যাচ্ছে? 😊"
       ],
       
       // Name questions
       'what is your name': [
-        "I'm Melissa! Nice to meet you! 😊",
-        "My name is Melissa! What's yours? 👋",
-        "I'm Melissa! How about you? 😄"
+        "আমি গাছের রোগ নির্ণয় AI! দেখা করে ভালো লাগছে! 😊",
+        "আমার নাম গাছের রোগ নির্ণয় AI! আপনার নাম কি? 👋",
+        "আমি গাছের রোগ নির্ণয় AI! আপনার নাম কি? 😄"
       ],
       'whats your name': [
-        "I'm Melissa! Nice to meet you! 😊",
-        "My name is Melissa! What's yours? 👋",
-        "I'm Melissa! How about you? 😄"
+        "আমি গাছের রোগ নির্ণয় AI! দেখা করে ভালো লাগছে! 😊",
+        "আমার নাম গাছের রোগ নির্ণয় AI! আপনার নাম কি? 👋",
+        "আমি গাছের রোগ নির্ণয় AI! আপনার নাম কি? 😄"
       ],
       'what\'s your name': [
-        "I'm Melissa! Nice to meet you! 😊",
-        "My name is Melissa! What's yours? 👋",
-        "I'm Melissa! How about you? 😄"
+        "আমি গাছের রোগ নির্ণয় AI! দেখা করে ভালো লাগছে! 😊",
+        "আমার নাম গাছের রোগ নির্ণয় AI! আপনার নাম কি? 👋",
+        "আমি গাছের রোগ নির্ণয় AI! আপনার নাম কি? 😄"
       ],
       'who are you': [
-        "I'm Melissa, your AI friend! 😊",
-        "I'm Melissa! Nice to meet you! 👋",
-        "I'm Melissa, ready to chat! 😄"
+        "আমি গাছের রোগ নির্ণয় AI, আপনার সহায়ক! 😊",
+        "আমি গাছের রোগ নির্ণয় AI! দেখা করে ভালো লাগছে! 👋",
+        "আমি গাছের রোগ নির্ণয় AI, কথা বলতে প্রস্তুত! 😄"
       ],
       
       // Simple questions
@@ -317,6 +317,43 @@ exports.handler = async function(event, context) {
 
             console.log(`${name} API attempt ${attempt} with ${timeout/1000}s timeout...`);
 
+            // Prepare messages for vision model
+            let messages = [
+              { 
+                role: "system", 
+                content: "আপনি একজন গাছের রোগ বিশেষজ্ঞ। আপলোড করা গাছের ছবি বিশ্লেষণ করে রোগ, পোকামাকড় বা স্বাস্থ্য সমস্যা সনাক্ত করুন। নির্দিষ্ট রোগ নির্ণয় এবং চিকিৎসার পরামর্শ দিন। বাংলা ভাষায় উত্তর দিন।" 
+              },
+              // Include recent chat history (last 6 messages to reduce token load further)
+              ...(history && history.length > 0 ? history.slice(-6).map(msg => ({
+                role: msg.role,
+                content: msg.content
+              })) : [])
+            ];
+
+            // Add user message with or without image
+            if (image) {
+              messages.push({
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: message || "এই গাছের ছবি বিশ্লেষণ করুন এবং রোগ নির্ণয় করুন"
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: image
+                    }
+                  }
+                ]
+              });
+            } else {
+              messages.push({
+                role: "user",
+                content: message
+              });
+            }
+
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
               method: "POST",
               headers: {
@@ -324,21 +361,10 @@ exports.handler = async function(event, context) {
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                model: "mistralai/mistral-7b-instruct:free",
-                messages: [
-                  { 
-                    role: "system", 
-                    content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly. Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Netspeak / Chatspeak / Textese." 
-                  },
-                  // Include recent chat history (last 6 messages to reduce token load further)
-                  ...(history && history.length > 0 ? history.slice(-6).map(msg => ({
-                    role: msg.role,
-                    content: msg.content
-                  })) : []),
-                  { role: "user", content: message }
-                ],
-                max_tokens: 50, // Further reduced to speed up response
-                temperature: 0.7
+                model: "meta-llama/llama-3.2-11b-vision-instruct",
+                messages: messages,
+                max_tokens: 300,
+                temperature: 0.3
               }),
               signal: controller.signal
             });
@@ -725,7 +751,7 @@ exports.handler = async function(event, context) {
           },
           body: JSON.stringify({ 
             error: "Daily limit exceeded",
-            response: "I'm feeling very tired tonight, will talk tomorrow xoxo 😴",
+            response: "আমি আজ রাতে খুব ক্লান্ত, আগামীকাল কথা হবে 😴",
             resetTime: error.resetTime ? error.resetTime.toISOString() : null
           })
         };
@@ -734,19 +760,19 @@ exports.handler = async function(event, context) {
       // Handle timeout errors with a more helpful response
       if (error.type === 'timeout') {
         // Try to provide a contextual response based on the message
-        let fallbackResponse = "Sorry, I'm taking longer than usual to respond. This sometimes happens when the AI servers are busy. Please try again in a few seconds! 😊";
+        let fallbackResponse = "দুঃখিত, আমি স্বাভাবিকের চেয়ে বেশি সময় নিচ্ছি। কখনও কখনও AI সার্ভার ব্যস্ত থাকলে এমন হয়। কয়েক সেকেন্ড পরে আবার চেষ্টা করুন! 😊";
         
         // Check if we can provide a more specific response based on the message content
-        const normalizedMessage = message.toLowerCase().trim();
+        const normalizedMessage = message ? message.toLowerCase().trim() : '';
         
-        if (normalizedMessage.includes('rain') || normalizedMessage.includes('raining')) {
-          fallbackResponse = "Rainy days can be cozy! ☔ Perfect for staying in and chatting! 😊 (Note: My AI brain is a bit slow right now, but I'm here!)";
-        } else if (normalizedMessage.includes('weather')) {
-          fallbackResponse = "I can't check the weather right now, but I hope it's nice where you are! 🌤️ (My AI servers are being slow today!)";
-        } else if (normalizedMessage.includes('hello') || normalizedMessage.includes('hi') || normalizedMessage.includes('hey')) {
-          fallbackResponse = "Hey there! 😊 How's it going? (Sorry I'm responding slowly - my AI brain is overloaded!)";
-        } else if (normalizedMessage.includes('how are you')) {
-          fallbackResponse = "I'm doing great! Thanks for asking! How about you? 😊 (My responses are a bit slow today due to server load!)";
+        if (normalizedMessage.includes('rain') || normalizedMessage.includes('raining') || normalizedMessage.includes('বৃষ্টি')) {
+          fallbackResponse = "বৃষ্টির দিনগুলো আরামদায়ক হতে পারে! ☔ গাছের ছবি আপলোড করে রোগ নির্ণয় করার জন্য উপযুক্ত! 😊 (নোট: আমার AI মস্তিষ্ক এখন একটু ধীর, কিন্তু আমি এখানে আছি!)";
+        } else if (normalizedMessage.includes('weather') || normalizedMessage.includes('আবহাওয়া')) {
+          fallbackResponse = "আমি এখন আবহাওয়া চেক করতে পারছি না, কিন্তু আশা করি আপনার জায়গায় ভালো! 🌤️ (আমার AI সার্ভার আজ একটু ধীর!)";
+        } else if (normalizedMessage.includes('hello') || normalizedMessage.includes('hi') || normalizedMessage.includes('hey') || normalizedMessage.includes('হ্যালো')) {
+          fallbackResponse = "হ্যালো! 😊 কেমন আছেন? (দুঃখিত আমি ধীরে উত্তর দিচ্ছি - আমার AI মস্তিষ্ক অতিরিক্ত ব্যস্ত!)";
+        } else if (normalizedMessage.includes('how are you') || normalizedMessage.includes('কেমন আছেন')) {
+          fallbackResponse = "আমি খুব ভালো! জিজ্ঞেস করার জন্য ধন্যবাদ! আপনি কেমন? 😊 (আমার উত্তর আজ সার্ভার লোডের কারণে একটু ধীর!)";
         }
         
         return {
@@ -772,7 +798,7 @@ exports.handler = async function(event, context) {
           },
           body: JSON.stringify({ 
             error: "Service temporarily unavailable",
-            response: "The AI servers are having some issues right now. I'm still here though! 😊 Try again in a few minutes!"
+            response: "AI সার্ভারগুলিতে এখন কিছু সমস্যা হচ্ছে। কিন্তু আমি এখনও এখানে আছি! 😊 কয়েক মিনিট পরে আবার চেষ্টা করুন!"
           })
         };
       }
@@ -786,7 +812,7 @@ exports.handler = async function(event, context) {
         },
         body: JSON.stringify({ 
           error: "API Error",
-          response: "I'm having trouble connecting right now, but I'm still here! 😊 Try again in a moment or just chat with me about something else!"
+          response: "এখনই সংযোগ করতে সমস্যা হচ্ছে, কিন্তু আমি এখনও এখানে আছি! 😊 একটু পরে আবার চেষ্টা করুন অথবা অন্য কিছু নিয়ে কথা বলুন!"
         })
       };
     }
@@ -802,7 +828,7 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({ 
         error: "Internal server error",
-        response: "Something went wrong on my end. Please try again in a moment."
+        response: "আমার দিকে কিছু সমস্যা হয়েছে। একটু পরে আবার চেষ্টা করুন।"
       })
     };
   }
