@@ -50,7 +50,7 @@ melissa-ai/
 ├── jscript.js              # Frontend logic with chat history & rate limit management
 ├── stylesheet.css          # Modern chat interface styling with dynamic status
 ├── chat.mp3                # Message notification sound
-├── melissa.jpg             # Melissa's avatar image
+├── logo.png             # Melissa's avatar image
 ├── functions/
 │   ├── chat.js            # Netlify function with AI integration & fallback system
 │   ├── package.json       # Function dependencies
