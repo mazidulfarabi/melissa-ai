@@ -15,6 +15,7 @@ body {
   background-image: url("https://images.template.net/77233/Free-Doodle-Autumn-Leave-Vector-1.jpg");
   background-color: #ffffff;
   overflow: hidden;
+  opacity: 0.4;
 }
 
 .container {
