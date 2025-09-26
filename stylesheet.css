@@ -368,6 +368,7 @@ body::before {
   background: rgba(255, 255, 255, 0.9);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
 }
 
 .input-container {
@@ -567,6 +568,7 @@ body::before {
   .input-area {
     padding: 16px 20px 24px 20px;
     gap: 12px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
   
   .input-field {
