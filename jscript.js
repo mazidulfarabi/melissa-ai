@@ -242,20 +242,58 @@ function chatBot() {
       if (imageData) {
         requestBody.image = imageData;
       }
+      
+      // Log request details for debugging
+      console.log('Making API request with body size:', JSON.stringify(requestBody).length, 'characters');
 
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       console.log('API Response Status:', response.status);
       console.log('API Response Headers:', response.headers);
 
-      const data = await response.json();
-      console.log('API Response Data:', data);
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        console.error('API Response not OK:', response.status, response.statusText);
+      }
+
+      // Get response text first to handle potential JSON parsing errors
+      const responseText = await response.text();
+      console.log('API Response Text (first 200 chars):', responseText.substring(0, 200));
+      
+      // Check if response is empty
+      if (!responseText || responseText.trim() === '') {
+        console.error('Empty response from server');
+        throw new Error(`সার্ভার থেকে খালি উত্তর পেয়েছি। সার্ভার সমস্যা হতে পারে। (Status: ${response.status})`);
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('API Response Data:', data);
+      } catch (jsonError) {
+        console.error('JSON Parse Error:', jsonError);
+        console.error('Response text that failed to parse:', responseText);
+        
+        // Check if it's an HTML error page (common with server errors)
+        if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE')) {
+          throw new Error(`সার্ভার একটি HTML পেজ ফেরত দিয়েছে। সার্ভার সমস্যা হতে পারে। (Status: ${response.status})`);
+        }
+        
+        throw new Error(`সার্ভার থেকে অপ্রত্যাশিত উত্তর পেয়েছি। সার্ভার সমস্যা হতে পারে। (Status: ${response.status})`);
+      }
       
       if (!response.ok) {
         console.error('API Error Details:', {
@@ -322,9 +360,13 @@ function chatBot() {
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         errorMessage = "নেটওয়ার্ক সংযোগ সমস্যা। ইন্টারনেট চেক করুন।";
       } else if (error.name === 'AbortError') {
-        errorMessage = "অনুরোধ সময় শেষ। আবার চেষ্টা করুন।";
+        errorMessage = "অনুরোধ সময় শেষ (৬০ সেকেন্ড)। সার্ভার ধীরে উত্তর দিচ্ছে। আবার চেষ্টা করুন।";
       } else if (error.message.includes('JSON')) {
         errorMessage = "সার্ভার থেকে উত্তর পেতে সমস্যা। আবার চেষ্টা করুন।";
+      } else if (error.message.includes('সার্ভার থেকে অপ্রত্যাশিত উত্তর') || 
+                 error.message.includes('সার্ভার থেকে খালি উত্তর') ||
+                 error.message.includes('সার্ভার একটি HTML পেজ')) {
+        errorMessage = error.message; // Use the specific error message we created
       } else {
         errorMessage = `সংযোগ সমস্যা: ${error.message}`;
       }
@@ -702,7 +744,9 @@ $(function () {
       console.log('Sending request to API...', {
         hasImage: !!imageData,
         imageSize: imageData ? imageData.length : 0,
-        message: inputText || 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন'
+        message: inputText || 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন',
+        endpoint: API_ENDPOINT,
+        timestamp: new Date().toISOString()
       });
       
       // Use different message for scanned vs uploaded images
