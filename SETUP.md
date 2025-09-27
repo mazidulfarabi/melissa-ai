@@ -95,7 +95,7 @@ This project uses OpenRouter AI with Mistral 7B for intelligent and dynamic resp
 ├── jscript.js          # Frontend JavaScript with chat history
 ├── stylesheet.css      # Modern chat interface styling
 ├── chat.mp3           # Message notification sound
-├── logo.png        # Melissa's avatar image
+├── logo.jpg        # Melissa's avatar image
 ├── functions/
 │   ├── chat.js         # Netlify function for API calls
 │   ├── package.json    # Function dependencies
