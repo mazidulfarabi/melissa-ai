@@ -61,6 +61,8 @@ html, body{
   justify-content: center;
   z-index: 9999;
   transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+  opacity: 1;
+  visibility: visible;
 }
 
 .loading-screen.hidden {
@@ -73,6 +75,7 @@ html, body{
   flex-direction: column;
   align-items: center;
   gap: 20px;
+  position: relative;
 }
 
 .loading-gif {
@@ -80,7 +83,27 @@ html, body{
   height: 80px;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  filter: brightness(0) invert(1); /* Make gif white */
+  /* Remove filter to show original gif colors */
+  display: block;
+  margin: 0 auto;
+  /* Fallback background in case gif doesn't load */
+  background: rgba(255, 255, 255, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Fallback spinner if gif fails to load */
+.loading-gif::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .loading-text {
