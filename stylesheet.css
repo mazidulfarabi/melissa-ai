@@ -11,27 +11,6 @@ html, body{
   font-family: "Noto Sans Bengali", "DM Sans", sans-serif; 
 }
 
-body {
-  background-image: url("https://img.freepik.com/premium-vector/hand-drawn-leaves-illustration-collection_699403-17.jpg");
-  overflow: hidden;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  position: relative;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.7);
-  z-index: -1;
-}
-
 .container {
   height: 100vh;
   display: flex;
@@ -495,7 +474,7 @@ body .input-area {
   transform: scale(0.95);
 }
 
-.image-btn, .camera-btn, .scan-btn {
+.image-btn, .scan-btn {
   background: #34C759;
   color: white;
   border: none;
@@ -512,20 +491,12 @@ body .input-area {
   flex-shrink: 0;
 }
 
-.image-btn:hover, .camera-btn:hover, .scan-btn:hover {
+.image-btn:hover, .scan-btn:hover {
   transform: scale(1.05);
 }
 
-.image-btn:active, .camera-btn:active, .scan-btn:active {
+.image-btn:active, .scan-btn:active {
   transform: scale(0.95);
-}
-
-.camera-btn {
-  background: #FF9500;
-}
-
-.camera-btn:hover {
-  background: #E6850E;
 }
 
 .scan-btn {
@@ -671,13 +642,13 @@ body .input-area {
     height: 18px;
   }
   
-  .image-btn, .camera-btn, .scan-btn {
+  .image-btn, .scan-btn {
     width: 40px;
     height: 40px;
     font-size: 16px;
   }
   
-  .image-btn svg, .camera-btn svg, .scan-btn svg {
+  .image-btn svg, .scan-btn svg {
     width: 18px;
     height: 18px;
   }
@@ -686,231 +657,5 @@ body .input-area {
     font-size: 16px;
     padding: 16px 24px;
     border-radius: 12px;
-  }
-}
-
-/* Camera Modal Styles */
-.camera-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.camera-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.camera-container {
-  background: white;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow: hidden;
-  position: relative;
-}
-
-.camera-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.camera-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1c1c1e;
-}
-
-.close-camera-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #6c757d;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-camera-btn:hover {
-  background: rgba(108, 117, 125, 0.1);
-}
-
-.camera-preview-container {
-  position: relative;
-  width: 100%;
-  height: 400px;
-  background: #000;
-  overflow: hidden;
-}
-
-#camera-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-#camera-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.camera-overlay-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  display: none;
-}
-
-.camera-overlay-grid.scan-mode {
-  display: block;
-}
-
-.camera-overlay-grid::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 85%;
-  height: 70%;
-  border: 3px solid #34C759;
-  border-radius: 12px;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-}
-
-.camera-overlay-grid::after {
-  content: 'গাছের পাতা/শাখা ফ্রেমের মধ্যে রাখুন - ভাল আলোতে ছবি তুলুন';
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: white;
-  background: rgba(52, 199, 89, 0.9);
-  padding: 10px 20px;
-  border-radius: 25px;
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
-  max-width: 90%;
-  line-height: 1.3;
-}
-
-.camera-controls {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  padding: 20px;
-  background: #f8f9fa;
-}
-
-.capture-btn {
-  background: #007AFF;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
-}
-
-.capture-btn:hover {
-  background: #0056CC;
-  transform: scale(1.05);
-}
-
-.capture-btn:active {
-  transform: scale(0.95);
-}
-
-.switch-camera-btn {
-  background: rgba(0, 0, 0, 0.1);
-  color: #6c757d;
-  border: none;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.switch-camera-btn:hover {
-  background: rgba(0, 0, 0, 0.2);
-  color: #495057;
-}
-
-/* Mobile responsive for camera modal */
-@media (max-width: 480px) {
-  .camera-container {
-    max-width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-  }
-  
-  .camera-preview-container {
-    height: 60vh;
-  }
-  
-  .camera-header {
-    padding: 12px 16px;
-  }
-  
-  .camera-header h3 {
-    font-size: 16px;
-  }
-  
-  .camera-controls {
-    padding: 16px;
-    gap: 16px;
-  }
-  
-  .capture-btn {
-    width: 56px;
-    height: 56px;
-  }
-  
-  .switch-camera-btn {
-    width: 40px;
-    height: 40px;
   }
 }
