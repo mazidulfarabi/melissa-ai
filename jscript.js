@@ -420,6 +420,62 @@ function closeCameraModal() {
 }
 
 $(function () {
+  // Show loading screen for 2 seconds at 2x speed
+  function showLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const loadingGif = document.querySelector('.loading-gif');
+    
+    // Ensure loading screen is visible
+    loadingScreen.classList.remove('hidden');
+    
+    // Set gif animation speed to 2x (0.5s duration for 1s animation)
+    if (loadingGif) {
+      loadingGif.style.animationDuration = '0.5s';
+    }
+    
+    // Hide loading screen after 2 seconds
+    setTimeout(() => {
+      loadingScreen.classList.add('hidden');
+      
+      // Remove loading screen from DOM after transition completes
+      setTimeout(() => {
+        if (loadingScreen.parentNode) {
+          loadingScreen.parentNode.removeChild(loadingScreen);
+        }
+      }, 500); // Wait for CSS transition to complete
+    }, 2000);
+  }
+  
+  // Show loading screen on page load or refresh
+  showLoadingScreen();
+  
+  // Handle page refresh - show loading screen again
+  window.addEventListener('beforeunload', function() {
+    // This ensures loading screen shows on refresh
+    sessionStorage.setItem('pageRefreshed', 'true');
+  });
+  
+  // Check if page was refreshed and show loading screen
+  if (sessionStorage.getItem('pageRefreshed')) {
+    sessionStorage.removeItem('pageRefreshed');
+    showLoadingScreen();
+  }
+  
+  // Fix mobile viewport height for Chrome's dynamic URL bar
+  function setViewportHeight() {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+  }
+  
+  // Set initial viewport height
+  setViewportHeight();
+  
+  // Update viewport height on resize and orientation change
+  window.addEventListener('resize', setViewportHeight);
+  window.addEventListener('orientationchange', function() {
+    setTimeout(setViewportHeight, 100); // Small delay for orientation change
+  });
+
   var bot = new chatBot();
   var chat = $('.chat');
   var input = $('.input-field');

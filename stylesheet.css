@@ -13,7 +13,7 @@ html, body{
   position: relative;
 }
 
-/* Prevent viewport scaling issues on mobile */
+/* Use dynamic viewport height for better mobile support */
 @supports (height: 100dvh) {
   html, body {
     height: 100dvh;
@@ -24,12 +24,93 @@ html, body{
   }
 }
 
+/* Handle mobile browser UI changes */
+@media (max-width: 768px) {
+  /* Use CSS custom properties for dynamic viewport */
+  :root {
+    --vh: 1vh;
+  }
+  
+  .container {
+    height: calc(var(--vh, 1vh) * 100);
+    min-height: calc(var(--vh, 1vh) * 100);
+  }
+}
+
+/* Fallback for browsers that don't support dvh */
 .container {
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0);
   overflow: hidden;
+  /* Add padding for safe areas on mobile */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Loading Screen */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.loading-gif {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  filter: brightness(0) invert(1); /* Make gif white */
+}
+
+.loading-text {
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+  font-family: "Noto Sans Bengali", "DM Sans", sans-serif;
+  text-align: center;
+  opacity: 0.9;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Mobile loading screen adjustments */
+@media (max-width: 480px) {
+  .loading-gif {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .loading-text {
+    font-size: 28px;
+  }
+  
+  .loading-content {
+    gap: 24px;
+  }
 }
 
 /* Header Bar */
@@ -572,8 +653,24 @@ body .input-area {
 
 /* Responsive Design */
 @media (max-width: 480px) {
+  /* Ensure full mobile viewport usage */
+  html, body {
+    height: 100vh;
+    height: 100dvh;
+  }
+  
+  .container {
+    height: 100vh;
+    height: 100dvh;
+    /* Account for mobile browser UI */
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  
   .header {
     padding: 12px 16px;
+    /* Ensure header doesn't get cut off */
+    padding-top: max(12px, env(safe-area-inset-top));
   }
   
   .avatar {
@@ -647,6 +744,8 @@ body .input-area {
     padding: 16px 20px 50px 20px !important;
     gap: 12px !important;
     padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+    /* Ensure input area is always visible above mobile keyboard */
+    padding-bottom: max(50px, calc(24px + env(safe-area-inset-bottom))) !important;
   }
   
   .input-field {
