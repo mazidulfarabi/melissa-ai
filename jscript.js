@@ -13,6 +13,12 @@ let rateLimitTimer = null;
 // Image management
 let selectedImage = null;
 
+// Camera management
+let currentStream = null;
+let currentCameraIndex = 0;
+let availableCameras = [];
+let isScanMode = false;
+
 function chatBot() {
   this.input;
   this.chatHistory = [];
@@ -305,6 +311,114 @@ function hideImagePreview() {
   selectedImage = null;
 }
 
+// Camera functions
+async function getAvailableCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === 'videoinput');
+  } catch (error) {
+    console.error('Error getting cameras:', error);
+    return [];
+  }
+}
+
+async function startCamera(cameraIndex = 0) {
+  try {
+    // Stop existing stream
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
+
+    const constraints = {
+      video: {
+        facingMode: cameraIndex === 0 ? 'environment' : 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    };
+
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const video = document.getElementById('camera-preview');
+    video.srcObject = currentStream;
+    
+    return true;
+  } catch (error) {
+    console.error('Error starting camera:', error);
+    alert('ক্যামেরা অ্যাক্সেস করতে সমস্যা হয়েছে। দয়া করে ক্যামেরা অনুমতি দিন।');
+    return false;
+  }
+}
+
+function stopCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+    currentStream = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('camera-preview');
+  const canvas = document.getElementById('camera-canvas');
+  const context = canvas.getContext('2d');
+  
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  // Draw video frame to canvas
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Convert canvas to blob
+  canvas.toBlob(function(blob) {
+    if (blob) {
+      // Create a File object from the blob
+      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+      selectedImage = file;
+      showImagePreview(file);
+      closeCameraModal();
+    }
+  }, 'image/jpeg', 0.8);
+}
+
+function switchCamera() {
+  currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+  startCamera(currentCameraIndex);
+}
+
+function openCameraModal(mode = 'camera') {
+  isScanMode = mode === 'scan';
+  const modal = document.getElementById('camera-modal');
+  const title = document.getElementById('camera-title');
+  const overlayGrid = document.getElementById('camera-overlay-grid');
+  
+  if (isScanMode) {
+    title.textContent = 'গাছ/পাতা স্ক্যান করুন';
+    overlayGrid.classList.add('scan-mode');
+  } else {
+    title.textContent = 'ক্যামেরা';
+    overlayGrid.classList.remove('scan-mode');
+  }
+  
+  modal.style.display = 'flex';
+  
+  // Get available cameras and start camera
+  getAvailableCameras().then(cameras => {
+    availableCameras = cameras;
+    if (cameras.length > 1) {
+      document.getElementById('switch-camera-btn').style.display = 'flex';
+    }
+    startCamera();
+  });
+}
+
+function closeCameraModal() {
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'none';
+  stopCamera();
+  isScanMode = false;
+  document.getElementById('camera-overlay-grid').classList.remove('scan-mode');
+}
+
 $(function () {
   var bot = new chatBot();
   var chat = $('.chat');
@@ -349,6 +463,35 @@ $(function () {
   removeImageBtn.on('click', function() {
     hideImagePreview();
     imageUpload.val('');
+  });
+
+  // Camera button handlers
+  $('.camera-btn').on('click', function() {
+    openCameraModal('camera');
+  });
+
+  $('.scan-btn').on('click', function() {
+    openCameraModal('scan');
+  });
+
+  // Camera modal handlers
+  $('#capture-btn').on('click', function() {
+    capturePhoto();
+  });
+
+  $('#switch-camera-btn').on('click', function() {
+    switchCamera();
+  });
+
+  $('.close-camera-btn').on('click', function() {
+    closeCameraModal();
+  });
+
+  // Close camera modal when clicking outside
+  $('.camera-overlay').on('click', function(e) {
+    if (e.target === this) {
+      closeCameraModal();
+    }
   });
 
   var updateChat = function(party, message, imageUrl = null) {
@@ -493,8 +636,8 @@ $(function () {
     hideImagePreview();
     // Force reset rate limit status (for when API keys are changed)
     bot.forceResetRateLimit();
-    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
-    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
+    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা প্রশ্ন করুন।");
   });
 
   // Auto-resize textarea
@@ -505,8 +648,8 @@ $(function () {
 
   // Initialize chat
   if (bot.chatHistory.length === 0) {
-    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
-    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন অথবা প্রশ্ন করুন।");
+    updateChat('other', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি গাছের রোগ নির্ণয় AI। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা প্রশ্ন করুন।");
   } else {
     // Restore chat history to UI
     bot.chatHistory.forEach(function(msg) {
