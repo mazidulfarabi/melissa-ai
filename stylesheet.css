@@ -16,7 +16,6 @@ html, body{
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0);
-  overflow: hidden;
 }
 
 /* Header Bar */
