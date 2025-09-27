@@ -91,6 +91,8 @@ exports.handler = async function(event, context) {
     console.log('User message:', message);
     console.log('Chat history length:', history ? history.length : 0);
     console.log('Has image:', !!image);
+    console.log('Image data length:', image ? image.length : 0);
+    console.log('Image data preview:', image ? image.substring(0, 100) + '...' : 'none');
     console.log('Request timestamp:', new Date().toISOString());
 
     // Optimized local response system for common greetings and simple questions so resources are not wasted
@@ -539,7 +541,8 @@ exports.handler = async function(event, context) {
             }
             
             // If response is very short and we have an image, suggest asking for more details
-            if (image && responseContent.length < 100) {
+            // Reduced threshold from 100 to 50 characters for better user experience
+            if (image && responseContent.length < 50) {
               responseContent += '\n\nআরও বিস্তারিত বিশ্লেষণের জন্য "এই গাছের রোগের চিকিৎসা পদ্ধতি বলুন" বা "রোগের কারণ কী" বা "গাছের যত্নের পরামর্শ দিন" এর মতো প্রশ্ন করুন।';
             }
 

@@ -388,8 +388,8 @@ async function startCamera(cameraIndex = 0) {
     const constraints = {
       video: {
         facingMode: cameraIndex === 0 ? 'environment' : 'user',
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 }
       }
     };
 
@@ -424,7 +424,7 @@ function capturePhoto() {
   // Draw video frame to canvas
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
   
-  // Convert canvas to blob
+  // Convert canvas to blob with higher quality for better AI analysis
   canvas.toBlob(function(blob) {
     if (blob) {
       // Create a File object from the blob
@@ -433,7 +433,7 @@ function capturePhoto() {
       showImagePreview(file);
       closeCameraModal();
     }
-  }, 'image/jpeg', 0.8);
+  }, 'image/jpeg', 0.95); // Increased quality from 0.8 to 0.95 for better AI analysis
 }
 
 function switchCamera() {
@@ -670,8 +670,14 @@ $(function () {
     var imageUrl = null;
     if (selectedImage) {
       try {
+        console.log('Converting image to base64...', {
+          fileName: selectedImage.name,
+          fileSize: selectedImage.size,
+          fileType: selectedImage.type
+        });
         imageData = await convertImageToBase64(selectedImage);
         imageUrl = imageData; // For display in chat
+        console.log('Image converted successfully, base64 length:', imageData.length);
       } catch (error) {
         console.error('Error converting image:', error);
         alert('ছবি প্রক্রিয়াকরণে সমস্যা হয়েছে।');
@@ -693,10 +699,26 @@ $(function () {
     
     try {
       // Get bot response
-      var reply = await bot.respondTo(inputText || 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন', imageData);
+      console.log('Sending request to API...', {
+        hasImage: !!imageData,
+        imageSize: imageData ? imageData.length : 0,
+        message: inputText || 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন'
+      });
+      
+      // Use different message for scanned vs uploaded images
+      var analysisMessage = inputText || (selectedImage && selectedImage.name === 'camera-capture.jpg' 
+        ? 'এই স্ক্যান করা গাছের ছবি বিশ্লেষণ করুন। গাছের রোগ, পাতার সমস্যা, এবং যত্নের পরামর্শ দিন।' 
+        : 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন');
+      
+      var reply = await bot.respondTo(analysisMessage, imageData);
       
       // Hide typing indicator
       busy.hide();
+      
+      console.log('API response received:', {
+        responseLength: reply.length,
+        responsePreview: reply.substring(0, 100) + '...'
+      });
       
       // Update UI with bot response
       updateChat('other', reply);
@@ -708,6 +730,15 @@ $(function () {
     } catch (error) {
       console.error('Error in submitChat:', error);
       busy.hide();
+      
+      // Enhanced error logging for debugging
+      console.error('Detailed error info:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        hasImage: !!imageData,
+        imageSize: imageData ? imageData.length : 0
+      });
       
       // Show the actual error message from the backend
       updateChat('other', error.message);
