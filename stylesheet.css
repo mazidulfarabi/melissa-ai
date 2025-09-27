@@ -12,7 +12,7 @@ html, body{
 }
 
 body {
-  background-image: url("https://images.template.net/80899/free-transparent-leaves-vector-yjdfm.jpg");
+  background-image: url("https://img.freepik.com/premium-vector/hand-drawn-leaves-illustration-collection_699403-17.jpg");
   overflow: hidden;
   background-size: cover;
   background-position: center;
@@ -321,6 +321,12 @@ body::before {
   font-size: 14px;
 }
 
+.user-avatar svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
 .ai-avatar {
   width: 32px;
   height: 32px;
@@ -620,8 +626,9 @@ body .input-area {
     height: 36px;
   }
   
-  .user-avatar {
-    font-size: 16px;
+  .user-avatar svg {
+    width: 18px;
+    height: 18px;
   }
   
   .message-text {
