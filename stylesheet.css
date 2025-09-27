@@ -621,7 +621,7 @@ body .input-area {
   body .input-area {
     padding: 16px 20px !important;
     gap: 12px !important;
-    margin-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
   }
   
   .input-field {
