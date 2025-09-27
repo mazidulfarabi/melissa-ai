@@ -501,15 +501,22 @@ $(function () {
       minute: "numeric" 
     });
     
-    var imageHtml = imageUrl ? `<div class="chat-image"><img src="${imageUrl}" alt="Uploaded image" style="max-width: 200px; border-radius: 8px; margin: 8px 0;"></div>` : '';
+    var imageHtml = imageUrl ? `<div class="chat-image"><img src="${imageUrl}" alt="Uploaded image"></div>` : '';
     
     var messageHtml = `
-      <div class="${party}">
-        <div class="party">${party === 'you' ? 'আপনি' : 'গাছের রোগ নির্ণয় AI'}</div>
-        <div class="msg-bubble">
-          ${imageHtml}
-          <div class="text">${message}</div>
-          <div class="time">${time}</div>
+      <div class="message-container ${party}">
+        <div class="message-avatar">
+          ${party === 'you' ? 
+            '<div class="user-avatar">আ</div>' : 
+            '<img src="logo.jpg" alt="AI" class="ai-avatar">'
+          }
+        </div>
+        <div class="message-content">
+          <div class="message-bubble">
+            ${imageHtml}
+            <div class="message-text">${message}</div>
+            <div class="message-time">${time}</div>
+          </div>
         </div>
       </div>
     `;

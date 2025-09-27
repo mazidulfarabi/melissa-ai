@@ -275,19 +275,11 @@ body::before {
   background: rgba(0, 0, 0, 0.3);
 }
 
-.chat div {
-  margin-bottom: 12px;
+/* Message Container */
+.message-container {
   display: flex;
-  flex-direction: column;
-}
-
-.msg-bubble {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 18px;
-  position: relative;
-  word-wrap: break-word;
-  line-height: 1.4;
+  margin-bottom: 12px;
+  align-items: flex-end;
   animation: fadeIn 0.3s ease-in;
 }
 
@@ -296,56 +288,113 @@ body::before {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.chat .party {
-  font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 12px;
-  opacity: 0.7;
+/* User messages (right side) */
+.message-container.you {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
-.chat .you {
-  align-self: flex-end;
-  color: #007AFF;
-  text-align: right;
+/* AI messages (left side) */
+.message-container.other {
+  flex-direction: row;
+  justify-content: flex-start;
 }
 
-.chat .other {
-  align-self: flex-start;
-  color: #FF3B30;
-  text-align: left;
+/* Message Avatar */
+.message-avatar {
+  flex-shrink: 0;
+  margin: 0 8px;
+  display: flex;
+  align-items: flex-end;
 }
 
-.chat .you .msg-bubble {
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   background: #007AFF;
   color: white;
-  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ai-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #34C759;
+}
+
+/* Message Content */
+.message-content {
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 18px;
+  position: relative;
+  word-wrap: break-word;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* User message bubble */
+.message-container.you .message-bubble {
+  background: #007AFF;
+  color: white;
   border-bottom-right-radius: 4px;
 }
 
-.chat .other .msg-bubble {
+/* AI message bubble */
+.message-container.other .message-bubble {
   background: #ffffff;
   color: #1c1c1e;
-  margin-right: auto;
   border-bottom-left-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.text {
+/* Chat Image */
+.chat-image {
+  margin: 8px 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.chat-image img {
+  width: 100%;
+  max-width: 250px;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+}
+
+/* Message Text */
+.message-text {
   color: inherit;
   line-height: 1.4;
   font-size: 15px;
+  margin-bottom: 4px;
 }
 
-.time {
+/* Message Time */
+.message-time {
   font-size: 11px;
   opacity: 0.6;
   margin-top: 4px;
 }
 
-.chat .you .time {
+.message-container.you .message-time {
   text-align: right;
 }
 
-.chat .other .time {
+.message-container.other .message-time {
   text-align: left;
 }
 
@@ -364,11 +413,11 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 16px 40px 16px;
+  padding: 12px 16px 40px 16px !important;
   background: rgba(255, 255, 255, 0.9);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
-  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
 }
 
 .input-container {
@@ -586,23 +635,30 @@ body::before {
     padding: 16px;
   }
   
-  .chat .party {
-    font-size: 14px;
-    margin-bottom: 6px;
+  .message-content {
+    max-width: 85%;
   }
   
-  .msg-bubble {
-    max-width: 85%;
+  .message-bubble {
     padding: 16px 20px;
     border-radius: 20px;
   }
   
-  .text {
+  .user-avatar, .ai-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .user-avatar {
+    font-size: 16px;
+  }
+  
+  .message-text {
     font-size: 17px;
     line-height: 1.5;
   }
   
-  .time {
+  .message-time {
     font-size: 13px;
     margin-top: 6px;
   }
@@ -614,9 +670,9 @@ body::before {
   }
   
   .input-area {
-    padding: 16px 20px 50px 20px;
+    padding: 16px 20px 50px 20px !important;
     gap: 12px;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
   }
   
   .input-field {
