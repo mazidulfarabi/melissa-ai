@@ -425,45 +425,29 @@ $(function () {
     const loadingScreen = document.getElementById('loading-screen');
     const loadingGif = document.querySelector('.loading-gif');
     
-    console.log('Loading screen element:', loadingScreen);
-    console.log('Loading gif element:', loadingGif);
-    
     // Ensure loading screen is visible
-    if (loadingScreen) {
-      loadingScreen.classList.remove('hidden');
-      loadingScreen.style.display = 'flex';
-      loadingScreen.style.opacity = '1';
-      loadingScreen.style.visibility = 'visible';
-    }
+    loadingScreen.classList.remove('hidden');
     
     // Set gif animation speed to 2x (0.5s duration for 1s animation)
     if (loadingGif) {
       loadingGif.style.animationDuration = '0.5s';
-      console.log('GIF animation set to 2x speed');
     }
     
     // Hide loading screen after 2 seconds
     setTimeout(() => {
-      if (loadingScreen) {
-        loadingScreen.classList.add('hidden');
-        loadingScreen.style.opacity = '0';
-        loadingScreen.style.visibility = 'hidden';
-        
-        // Remove loading screen from DOM after transition completes
-        setTimeout(() => {
-          if (loadingScreen.parentNode) {
-            loadingScreen.parentNode.removeChild(loadingScreen);
-          }
-        }, 500); // Wait for CSS transition to complete
-      }
+      loadingScreen.classList.add('hidden');
+      
+      // Remove loading screen from DOM after transition completes
+      setTimeout(() => {
+        if (loadingScreen.parentNode) {
+          loadingScreen.parentNode.removeChild(loadingScreen);
+        }
+      }, 500); // Wait for CSS transition to complete
     }, 2000);
   }
   
   // Show loading screen on page load or refresh
-  // Add a small delay to ensure DOM is fully loaded
-  setTimeout(() => {
-    showLoadingScreen();
-  }, 100);
+  showLoadingScreen();
   
   // Handle page refresh - show loading screen again
   window.addEventListener('beforeunload', function() {
@@ -474,9 +458,7 @@ $(function () {
   // Check if page was refreshed and show loading screen
   if (sessionStorage.getItem('pageRefreshed')) {
     sessionStorage.removeItem('pageRefreshed');
-    setTimeout(() => {
-      showLoadingScreen();
-    }, 100);
+    showLoadingScreen();
   }
   
   // Fix mobile viewport height for Chrome's dynamic URL bar
