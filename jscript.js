@@ -2,18 +2,21 @@
 const API_ENDPOINT = '/api/chat'; // This will be handled by Netlify Functions
 
 // Chat history management
-const CHAT_HISTORY_KEY = 'plant_disease_chat_history';
+const CHAT_HISTORY_KEY = 'green_companion_chat_history';
 const MAX_HISTORY_LENGTH = 50; // Maximum number of messages to store
 
 // Rate limit management
-const RATE_LIMIT_KEY = 'plant_disease_rate_limit';
+const RATE_LIMIT_KEY = 'green_companion_rate_limit';
 let isRateLimited = false;
 let rateLimitTimer = null;
 
 // Image management
 let selectedImage = null;
 
-// Scan mode management
+// Camera management
+let currentStream = null;
+let currentCameraIndex = 0;
+let availableCameras = [];
 let isScanMode = false;
 
 function chatBot() {
@@ -308,12 +311,112 @@ function hideImagePreview() {
   selectedImage = null;
 }
 
-// Scan functions
-function openScanModal() {
-  isScanMode = true;
-  // For now, just open the file picker for scanning
-  // In the future, this could open a specialized scanning interface
-  document.getElementById('image-upload').click();
+// Camera functions
+async function getAvailableCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === 'videoinput');
+  } catch (error) {
+    console.error('Error getting cameras:', error);
+    return [];
+  }
+}
+
+async function startCamera(cameraIndex = 0) {
+  try {
+    // Stop existing stream
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
+
+    const constraints = {
+      video: {
+        facingMode: cameraIndex === 0 ? 'environment' : 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    };
+
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const video = document.getElementById('camera-preview');
+    video.srcObject = currentStream;
+    
+    return true;
+  } catch (error) {
+    console.error('Error starting camera:', error);
+    alert('ক্যামেরা অ্যাক্সেস করতে সমস্যা হয়েছে। দয়া করে ক্যামেরা অনুমতি দিন।');
+    return false;
+  }
+}
+
+function stopCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+    currentStream = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('camera-preview');
+  const canvas = document.getElementById('camera-canvas');
+  const context = canvas.getContext('2d');
+  
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  // Draw video frame to canvas
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Convert canvas to blob
+  canvas.toBlob(function(blob) {
+    if (blob) {
+      // Create a File object from the blob
+      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+      selectedImage = file;
+      showImagePreview(file);
+      closeCameraModal();
+    }
+  }, 'image/jpeg', 0.8);
+}
+
+function switchCamera() {
+  currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+  startCamera(currentCameraIndex);
+}
+
+function openCameraModal(mode = 'camera') {
+  isScanMode = mode === 'scan';
+  const modal = document.getElementById('camera-modal');
+  const title = document.getElementById('camera-title');
+  const overlayGrid = document.getElementById('camera-overlay-grid');
+  
+  if (isScanMode) {
+    title.textContent = 'গাছ/পাতা স্ক্যান করুন';
+    overlayGrid.classList.add('scan-mode');
+  } else {
+    title.textContent = 'ক্যামেরা';
+    overlayGrid.classList.remove('scan-mode');
+  }
+  
+  modal.style.display = 'flex';
+  
+  // Get available cameras and start camera
+  getAvailableCameras().then(cameras => {
+    availableCameras = cameras;
+    if (cameras.length > 1) {
+      document.getElementById('switch-camera-btn').style.display = 'flex';
+    }
+    startCamera();
+  });
+}
+
+function closeCameraModal() {
+  const modal = document.getElementById('camera-modal');
+  modal.style.display = 'none';
+  stopCamera();
+  isScanMode = false;
+  document.getElementById('camera-overlay-grid').classList.remove('scan-mode');
 }
 
 $(function () {
@@ -335,9 +438,9 @@ $(function () {
   bot.checkRateLimit();
 
   // Listen for AI coming back online
-  $(document).on('plantDiseaseBackOnline', function() {
-    updateChat('other', "সুপ্রভাত! আমি সবুজ সাথী আবার অনলাইনে এসেছি এবং গাছের রোগ নির্ণয়ে সাহায্য করতে প্রস্তুত! 😊");
-    bot.addToHistory('assistant', "সুপ্রভাত! আমি সবুজ সাথী আবার অনলাইনে এসেছি এবং গাছের রোগ নির্ণয়ে সাহায্য করতে প্রস্তুত! 😊");
+  $(document).on('greenCompanionBackOnline', function() {
+    updateChat('other', "সুপ্রভাত! আমি সবুজ সাথী আবার অনলাইনে এসেছি এবং আপনার গাছের যত্নে সাহায্য করতে প্রস্তুত! 😊");
+    bot.addToHistory('assistant', "সুপ্রভাত! আমি সবুজ সাথী আবার অনলাইনে এসেছি এবং আপনার গাছের যত্নে সাহায্য করতে প্রস্তুত! 😊");
   });
 
   // Image upload handlers
@@ -362,9 +465,33 @@ $(function () {
     imageUpload.val('');
   });
 
-  // Scan button handler
+  // Camera button handlers
+  $('.camera-btn').on('click', function() {
+    openCameraModal('camera');
+  });
+
   $('.scan-btn').on('click', function() {
-    openScanModal();
+    openCameraModal('scan');
+  });
+
+  // Camera modal handlers
+  $('#capture-btn').on('click', function() {
+    capturePhoto();
+  });
+
+  $('#switch-camera-btn').on('click', function() {
+    switchCamera();
+  });
+
+  $('.close-camera-btn').on('click', function() {
+    closeCameraModal();
+  });
+
+  // Close camera modal when clicking outside
+  $('.camera-overlay').on('click', function(e) {
+    if (e.target === this) {
+      closeCameraModal();
+    }
   });
 
   var updateChat = function(party, message, imageUrl = null) {
@@ -381,7 +508,7 @@ $(function () {
         <div class="message-avatar">
           ${party === 'you' ? 
             '<div class="user-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/></svg></div>' : 
-            '<img src="logo.jpg" alt="সবুজ সাথী" class="ai-avatar">'
+            '<img src="logo.jpg" alt="AI" class="ai-avatar">'
           }
         </div>
         <div class="message-content">
@@ -430,12 +557,12 @@ $(function () {
     bot.addToHistory('user', inputText || 'ছবি আপলোড করা হয়েছে');
     
     // Show typing indicator
-    busy.text("গাছের রোগ নির্ণয় AI টাইপ করছে...");
+    busy.text("সবুজ সাথী টাইপ করছে...");
     busy.show();
     
     try {
       // Get bot response
-      var reply = await bot.respondTo(inputText || 'এই গাছের ছবি বিশ্লেষণ করুন', imageData);
+      var reply = await bot.respondTo(inputText || 'এই গাছের ছবি বিশ্লেষণ করুন এবং যত্নের পরামর্শ দিন', imageData);
       
       // Hide typing indicator
       busy.hide();
@@ -516,8 +643,8 @@ $(function () {
     hideImagePreview();
     // Force reset rate limit status (for when API keys are changed)
     bot.forceResetRateLimit();
-    updateChat('other', "হ্যালো! আমি সবুজ সাথী। আপনার গাছের ছবি আপলোড করুন অথবা পাতা স্ক্যান করুন।");
-    bot.addToHistory('assistant', "হ্যালো! আমি সবুজ সাথী। আপনার গাছের ছবি আপলোড করুন অথবা পাতা স্ক্যান করুন।");
+    updateChat('other', "হ্যালো! আমি সবুজ সাথী, আপনার গাছের যত্নের জন্য AI সহায়ক। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা গাছের যত্ন সম্পর্কে প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি সবুজ সাথী, আপনার গাছের যত্নের জন্য AI সহায়ক। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা গাছের যত্ন সম্পর্কে প্রশ্ন করুন।");
   });
 
   // Auto-resize textarea
@@ -528,8 +655,8 @@ $(function () {
 
   // Initialize chat
   if (bot.chatHistory.length === 0) {
-    updateChat('other', "হ্যালো! আমি সবুজ সাথী। আপনার গাছের ছবি আপলোড করুন অথবা পাতা স্ক্যান করুন।");
-    bot.addToHistory('assistant', "হ্যালো! আমি সবুজ সাথী। আপনার গাছের ছবি আপলোড করুন অথবা পাতা স্ক্যান করুন।");
+    updateChat('other', "হ্যালো! আমি সবুজ সাথী, আপনার গাছের যত্নের জন্য AI সহায়ক। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা গাছের যত্ন সম্পর্কে প্রশ্ন করুন।");
+    bot.addToHistory('assistant', "হ্যালো! আমি সবুজ সাথী, আপনার গাছের যত্নের জন্য AI সহায়ক। আপনার গাছের ছবি আপলোড করুন, ক্যামেরা দিয়ে তুলুন, পাতা স্ক্যান করুন অথবা গাছের যত্ন সম্পর্কে প্রশ্ন করুন।");
   } else {
     // Restore chat history to UI
     bot.chatHistory.forEach(function(msg) {
@@ -538,8 +665,8 @@ $(function () {
   }
 
   // Global function for debugging - users can call this from console
-  window.resetSobujSathiRateLimit = function() {
-    console.log('Force resetting সবুজ সাথী rate limit...');
+  window.resetGreenCompanionRateLimit = function() {
+    console.log('Force resetting Green Companion AI rate limit...');
     bot.forceResetRateLimit();
     console.log('Rate limit reset complete. You can now test with new API keys.');
   };
