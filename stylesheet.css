@@ -323,7 +323,7 @@ body::before {
 }
 
 .chat .other .msg-bubble {
-  background: #E9E9EB;
+  background: #ffffff;
   color: #1c1c1e;
   margin-right: auto;
   border-bottom-left-radius: 4px;
