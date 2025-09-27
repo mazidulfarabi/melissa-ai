@@ -413,23 +413,32 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 16px 40px 16px !important;
+  padding: 12px 16px 40px 16px;
   background: rgba(255, 255, 255, 0.9);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
-  padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Ensure desktop padding is applied */
+@media (min-width: 481px) {
+  .input-area {
+    padding: 12px 16px 40px 16px !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
 }
 
 .input-container {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 12px;
 }
 
 .input-buttons {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .input-field {
@@ -468,15 +477,16 @@ body::before {
   color: white;
   border: none;
   border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .send-btn:hover {
@@ -487,76 +497,45 @@ body::before {
   transform: scale(0.95);
 }
 
-.image-btn {
+.image-btn, .camera-btn, .scan-btn {
   background: #34C759;
   color: white;
   border: none;
   border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
-.image-btn:hover {
-  background: #28A745;
+.image-btn:hover, .camera-btn:hover, .scan-btn:hover {
+  transform: scale(1.05);
 }
 
-.image-btn:active {
+.image-btn:active, .camera-btn:active, .scan-btn:active {
   transform: scale(0.95);
 }
 
 .camera-btn {
   background: #FF9500;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
 }
 
 .camera-btn:hover {
   background: #E6850E;
 }
 
-.camera-btn:active {
-  transform: scale(0.95);
-}
-
 .scan-btn {
   background: #5856D6;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
 }
 
 .scan-btn:hover {
   background: #4A4AC4;
-}
-
-.scan-btn:active {
-  transform: scale(0.95);
 }
 
 .image-preview {
@@ -670,9 +649,9 @@ body::before {
   }
   
   .input-area {
-    padding: 16px 20px 50px 20px !important;
+    padding: 16px 20px 50px 20px;
     gap: 12px;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
   
   .input-field {
@@ -683,14 +662,25 @@ body::before {
   }
   
   .send-btn {
-    width: 52px;
-    height: 52px;
-    font-size: 18px;
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
   }
   
   .send-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
+  }
+  
+  .image-btn, .camera-btn, .scan-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  
+  .image-btn svg, .camera-btn svg, .scan-btn svg {
+    width: 18px;
+    height: 18px;
   }
   
   .rate-limit-alert {
