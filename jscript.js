@@ -251,29 +251,85 @@ function chatBot() {
         body: JSON.stringify(requestBody)
       });
 
+      console.log('API Response Status:', response.status);
+      console.log('API Response Headers:', response.headers);
+
       const data = await response.json();
+      console.log('API Response Data:', data);
       
       if (!response.ok) {
+        console.error('API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data,
+          url: API_ENDPOINT
+        });
+        
         // Check if it's a rate limit error
         if (response.status === 429 || 
             (data.response && data.response.includes("আমি খুব ক্লান্ত"))) {
           this.setRateLimit(data.resetTime); // Pass resetTime from API
           throw new Error(data.response || "আমি আজ রাতে খুব ক্লান্ত, আগামীকাল কথা হবে 😴");
         }
-        // Return the actual error message from the backend
-        throw new Error(data.response || "এখনই সংযোগ করতে সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন।");
+        
+        // Provide more specific error messages based on status code
+        let errorMessage = data.response;
+        if (!errorMessage) {
+          switch (response.status) {
+            case 500:
+              errorMessage = "সার্ভারে সমস্যা হচ্ছে। দয়া করে একটু পরে আবার চেষ্টা করুন।";
+              break;
+            case 503:
+              errorMessage = "সেবা অস্থায়ীভাবে বন্ধ। একটু পরে আবার চেষ্টা করুন।";
+              break;
+            case 400:
+              errorMessage = "অনুরোধে সমস্যা। দয়া করে আবার চেষ্টা করুন।";
+              break;
+            case 401:
+              errorMessage = "API কী সমস্যা। সেটিংস চেক করুন।";
+              break;
+            default:
+              errorMessage = `সংযোগ সমস্যা (${response.status})। একটু পরে আবার চেষ্টা করুন।`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       return data.response || "দুঃখিত, আমি বুঝতে পারিনি।";
     } catch (error) {
-      console.error('Error calling API:', error);
+      console.error('API Call Error Details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        type: typeof error,
+        endpoint: API_ENDPOINT,
+        timestamp: new Date().toISOString()
+      });
+      
       // If it's our custom error message, throw it as is
       if (error.message && (error.message.includes("আমি খুব ক্লান্ত") || 
-                           error.message.includes("সংযোগ করতে সমস্যা"))) {
+                           error.message.includes("সংযোগ করতে সমস্যা") ||
+                           error.message.includes("সার্ভারে সমস্যা") ||
+                           error.message.includes("সেবা অস্থায়ীভাবে") ||
+                           error.message.includes("অনুরোধে সমস্যা") ||
+                           error.message.includes("API কী সমস্যা"))) {
         throw error;
       }
-      // Otherwise throw a generic error
-      throw new Error("এখনই সংযোগ করতে সমস্যা হচ্ছে। একটু পরে আবার চেষ্টা করুন।");
+      
+      // Provide specific error messages based on error type
+      let errorMessage;
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = "নেটওয়ার্ক সংযোগ সমস্যা। ইন্টারনেট চেক করুন।";
+      } else if (error.name === 'AbortError') {
+        errorMessage = "অনুরোধ সময় শেষ। আবার চেষ্টা করুন।";
+      } else if (error.message.includes('JSON')) {
+        errorMessage = "সার্ভার থেকে উত্তর পেতে সমস্যা। আবার চেষ্টা করুন।";
+      } else {
+        errorMessage = `সংযোগ সমস্যা: ${error.message}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 

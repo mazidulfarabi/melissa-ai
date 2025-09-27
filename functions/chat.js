@@ -90,6 +90,8 @@ exports.handler = async function(event, context) {
     console.log('Backup API Key present:', !!process.env.OPENROUTER_API_KEY_BACKUP);
     console.log('User message:', message);
     console.log('Chat history length:', history ? history.length : 0);
+    console.log('Has image:', !!image);
+    console.log('Request timestamp:', new Date().toISOString());
 
     // Optimized local response system for common greetings and simple questions so resources are not wasted
     const localResponses = {
@@ -784,6 +786,13 @@ exports.handler = async function(event, context) {
 
     } catch (error) {
       console.error('All API keys failed:', error);
+      console.error('Error details:', {
+        type: error.type,
+        message: error.message,
+        key: error.key,
+        status: error.status,
+        timestamp: new Date().toISOString()
+      });
       
       // Check if it's a rate limit error from all keys
       if (error.type === 'rate_limit') {
