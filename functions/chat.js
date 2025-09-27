@@ -341,13 +341,13 @@ exports.handler = async function(event, context) {
       for (const { key, name } of apiKeys) {
         console.log(`Trying ${name} API key...`);
         
-        // Try up to 2 times for each key with shorter timeouts to avoid function timeout
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          try {
-            const controller = new AbortController();
-            // Increased timeouts for vision model: First attempt: 15 seconds, second attempt: 25 seconds
-            // Vision models need more time to process images and generate detailed responses
-            const timeout = attempt === 1 ? 15000 : 25000;
+            // Try up to 2 times for each key with reasonable timeouts for AI processing
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const controller = new AbortController();
+                // Increased timeouts for AI models: First attempt: 30 seconds, second attempt: 45 seconds
+                // AI models need sufficient time to process requests and generate quality responses
+                const timeout = attempt === 1 ? 30000 : 45000;
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
             console.log(`${name} API attempt ${attempt} with ${timeout/1000}s timeout...`);
@@ -356,7 +356,7 @@ exports.handler = async function(event, context) {
             let messages = [
               { 
                 role: "system", 
-                content: "আপনি সবুজ সাথী, একজন গাছের যত্ন বিশেষজ্ঞ। গাছের ছবি দেখে রোগ নির্ণয় করুন এবং যত্নের পরামর্শ দিন। রোগের নাম, লক্ষণ, কারণ এবং চিকিৎসা পদ্ধতি বলুন। সংক্ষেপে কিন্তু সম্পূর্ণ উত্তর দিন।" 
+                content: "আপনি সবুজ সাথী, একজন গাছের যত্ন বিশেষজ্ঞ। গাছের ছবি দেখে রোগ নির্ণয় করুন এবং যত্নের পরামর্শ দিন। গাছের সম্ভাব্য নাম, পাতার রং বলুন। রোগের নাম, লক্ষণ, কারণ এবং চিকিৎসা পদ্ধতি বলুন। সংক্ষেপে কিন্তু সম্পূর্ণ উত্তর দিন।" 
               },
               // Include recent chat history (last 6 messages to reduce token load further)
               ...(history && history.length > 0 ? history.slice(-6).map(msg => ({
