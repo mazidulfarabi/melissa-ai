@@ -408,24 +408,16 @@ body::before {
   margin-bottom: 8px;
 }
 
-/* Input Area */
-.input-area {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px 40px 16px;
-  background: rgba(255, 255, 255, 0.9);
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-  padding-bottom: calc(20px + env(safe-area-inset-bottom));
-}
-
-/* Ensure desktop padding is applied */
-@media (min-width: 481px) {
-  .input-area {
-    padding: 12px 16px 40px 16px !important;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
-  }
+/* Input Area - Desktop */
+body .input-area {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 12px 16px 40px 16px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
 }
 
 .input-container {
@@ -648,10 +640,10 @@ body::before {
     margin-bottom: 12px;
   }
   
-  .input-area {
-    padding: 16px 20px 50px 20px;
-    gap: 12px;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  body .input-area {
+    padding: 16px 20px 50px 20px !important;
+    gap: 12px !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
   }
   
   .input-field {
