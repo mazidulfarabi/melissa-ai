@@ -97,6 +97,11 @@ body {
   animation: statusBlinkOffline 1s infinite;
 }
 
+.contact-status.loading {
+  color: #007AFF;
+  animation: none;
+}
+
 .online-dot {
   width: 8px;
   height: 8px;
@@ -109,6 +114,11 @@ body {
 .online-dot.offline {
   background-color: #FF9500;
   animation: dotBlinkOffline 1s infinite;
+}
+
+.online-dot.loading {
+  background-color: #007AFF;
+  animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
@@ -217,6 +227,115 @@ body {
 .header-right {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.model-select-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.model-select {
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 12px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: #007AFF;
+  cursor: pointer;
+  outline: none;
+  max-width: 170px;
+  transition: all 0.2s ease;
+}
+
+.model-select:hover, .model-select:focus {
+  background: rgba(0, 122, 255, 0.15);
+  border-color: #007AFF;
+}
+
+/* Offline AI Progress Bar */
+.ai-progress-container {
+  background: rgba(240, 246, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 122, 255, 0.2);
+  padding: 8px 16px 10px 16px;
+  font-size: 13px;
+  color: #1c1c1e;
+  backdrop-filter: blur(10px);
+  animation: slideDown 0.3s ease;
+  z-index: 90;
+}
+
+.ai-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+  margin-bottom: 5px;
+}
+
+.ai-progress-label {
+  color: #007AFF;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+
+.ai-progress-pct {
+  font-weight: 700;
+  color: #007AFF;
+  font-size: 12px;
+}
+
+.ai-progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(0, 122, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.ai-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #007AFF, #5856D6);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.ai-progress-sub {
+  font-size: 11px;
+  color: #8e8e93;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  background-color: #007AFF;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: cursorBlink 0.8s infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .reset-btn {
@@ -427,6 +546,12 @@ body {
   
   .contact-status {
     font-size: 14px;
+  }
+  
+  .model-select {
+    max-width: 125px;
+    font-size: 11px;
+    padding: 4px 6px;
   }
   
   .online-dot {

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang = "en">
+<html lang="en">
 <head>
-      <meta charset = "UTF-8">
-	    <title>Melissa - Friend.AI</title>
-	    <meta name="description" content="Melissa is your AI friend whom you can chat with."/>
-	    <meta name="keywords" content="Melissa,Melissa AI,AI,chat,friend,Thynkzone"/>
+      <meta charset="UTF-8">
+	    <title>Melissa - Friend.AI (Offline In-Browser)</title>
+	    <meta name="description" content="Melissa is your AI friend who runs 100% offline in your browser powered by WebGPU."/>
+	    <meta name="keywords" content="Melissa,Melissa AI,AI,chat,friend,WebLLM,WebGPU,offline AI,Thynkzone"/>
 	    <meta name="author" content="Md. Mazidul Haque Farabi | Thynkzone"/>
-      <link rel="preload" href = "stylesheet.css" as="style">
+      <link rel="preload" href="stylesheet.css" as="style">
       <link rel="stylesheet" href="stylesheet.css">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.1/jquery.min.js" integrity="sha512-aVKKRRi/Q/YV+4mjoKBsE4x3H+BkegoM/em46NNlCqNTmUYADjBbeNefNxYV7giUp0VxICtqdrbqU7iVaeZNXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
       <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,20 +24,39 @@
 					<img src="melissa.jpg" alt="Melissa" class="avatar">
 					<div class="contact-details">
 						<div class="contact-name">Melissa</div>
-						<div class="contact-status">
-							<span class="online-dot"></span>
-							<span class="status-text">Online</span>
+						<div class="contact-status loading">
+							<span class="online-dot loading"></span>
+							<span class="status-text">Initializing AI...</span>
 						</div>
 					</div>
 				</div>
 			</div>
 			<div class="header-right">
+				<div class="model-select-wrapper" title="Choose Offline AI Model">
+					<select id="model-select" class="model-select">
+						<option value="Qwen2.5-0.5B-Instruct-q4f32_1-MLC" selected>Qwen2.5 0.5B (~350MB)</option>
+						<option value="SmolLM2-360M-Instruct-q4f32_1-MLC">SmolLM2 360M (~200MB)</option>
+						<option value="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama 3.2 1B (~700MB)</option>
+					</select>
+				</div>
 				<button class="reset-btn" title="Clear Chat">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 						<path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
 					</svg>
 				</button>
 			</div>
+		</div>
+
+		<!-- Offline AI Progress Bar -->
+		<div id="ai-progress-container" class="ai-progress-container" style="display: none;">
+			<div class="ai-progress-header">
+				<span id="ai-progress-label" class="ai-progress-label">Downloading offline AI brain...</span>
+				<span id="ai-progress-pct" class="ai-progress-pct">0%</span>
+			</div>
+			<div class="ai-progress-track">
+				<div id="ai-progress-bar" class="ai-progress-bar"></div>
+			</div>
+			<div class="ai-progress-sub">Weights are saved in browser cache. Subsequent visits are instant and 100% offline.</div>
 		</div>
 
 		<!-- Chat Area -->
@@ -55,6 +74,6 @@
 		</div>
 	</div>
 
-<script src="jscript.js"></script>
+<script type="module" src="jscript.js"></script>
 </body>
 </html>

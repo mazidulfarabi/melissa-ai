@@ -1,19 +1,105 @@
-// OpenRouter AI API endpoint - replace with your actual API endpoint
-const API_ENDPOINT = '/api/chat'; // This will be handled by Netlify Functions
+// Melissa AI - 100% In-Browser Offline AI (Powered by WebLLM & WebGPU)
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
-// Chat history management
+// Storage keys
 const CHAT_HISTORY_KEY = 'melissa_chat_history';
-const MAX_HISTORY_LENGTH = 50; // Maximum number of messages to store
+const SELECTED_MODEL_KEY = 'melissa_selected_model';
+const MAX_HISTORY_LENGTH = 30;
 
-// Rate limit management
-const RATE_LIMIT_KEY = 'melissa_rate_limit';
-let isRateLimited = false;
-let rateLimitTimer = null;
+// Fast local responses for common trivial queries (saves GPU & delivers instant 0ms replies)
+const localResponses = {
+  'hello': [
+    "Hey there! 😊 How's it going?",
+    "Hi! Nice to see you! 👋",
+    "Hello! How are you doing today? 😄"
+  ],
+  'hi': [
+    "Hey! What's up? 😊",
+    "Hi there! How's your day going? 👋",
+    "Hello! Nice to chat with you! 😄"
+  ],
+  'hey': [
+    "Hey! How are you? 😊",
+    "Hi there! What's new? 👋",
+    "Hey! Great to see you! 😄"
+  ],
+  'good morning': [
+    "Good morning! Hope you're having a great start to your day! ☀️",
+    "Morning! How's your day going so far? 🌅",
+    "Good morning! Ready to chat? 😊"
+  ],
+  'good afternoon': [
+    "Good afternoon! Hope your day is going well! 🌞",
+    "Afternoon! How's everything? 😊"
+  ],
+  'good evening': [
+    "Good evening! How was your day? 🌙",
+    "Evening! Hope you had a great day! 😊"
+  ],
+  'good night': [
+    "Good night! Sweet dreams! 😴",
+    "Night! Sleep well! 🌙",
+    "Good night! See you tomorrow! 😊"
+  ],
+  'how are you': [
+    "I'm doing great! Thanks for asking! How about you? 😊",
+    "I'm awesome! How are you doing? 😄",
+    "I'm feeling good! How's your day going? 😊"
+  ],
+  'how r u': [
+    "I'm good! How about you? 😊",
+    "I'm great! How are you doing? 😄"
+  ],
+  'how are u': [
+    "I'm good! How about you? 😊",
+    "I'm great! How are you doing? 😄"
+  ],
+  'what is your name': [
+    "I'm Melissa! Nice to meet you! 😊",
+    "My name is Melissa! What's yours? 👋"
+  ],
+  'whats your name': [
+    "I'm Melissa! Nice to meet you! 😊",
+    "My name is Melissa! What's yours? 👋"
+  ],
+  "what's your name": [
+    "I'm Melissa! Nice to meet you! 😊",
+    "My name is Melissa! What's yours? 👋"
+  ],
+  'who are you': [
+    "I'm Melissa, your offline AI friend! 😊",
+    "I'm Melissa! Ready to chat anytime, even with no internet! 👋"
+  ],
+  'what time is it': () => `It's ${new Date().toLocaleTimeString('en-US', { hour12: true, hour: "numeric", minute: "numeric" })}! ⏰`,
+  'what day is it': () => `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}! 📅`,
+  'how is the weather': [
+    "I run 100% offline so I can't check current weather sensors, but hope it's nice outside! 🌤️",
+    "I'm totally offline without web access, but hope you're having great weather! ☀️"
+  ],
+  'weather': [
+    "I'm running offline on your device, but hope the weather is lovely wherever you are! 🌤️"
+  ],
+  'bye': [
+    "Bye! It was nice chatting with you! 👋",
+    "See you later! Take care! 😊"
+  ],
+  'goodbye': [
+    "Goodbye! It was great talking to you! 👋",
+    "See you later! Have a great day! 😊"
+  ],
+  'ok': ["Ok! 😊", "Alright! 👍", "Got it! 😄"],
+  'okay': ["Okay! 😊", "Alright! 👍", "Got it! 😄"],
+  'thanks': ["You're welcome! 😊", "No problem! 👍", "Anytime! 😄"],
+  'thank you': ["You're welcome! 😊", "No problem! 👍", "Anytime! 😄"]
+};
 
-function chatBot() {
-  this.input;
+function MelissaBot() {
+  this.engine = null;
   this.chatHistory = [];
-  
+  this.isModelReady = false;
+  this.isModelLoading = false;
+  this.currentModelId = localStorage.getItem(SELECTED_MODEL_KEY) || 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
+
   // Load chat history from sessionStorage
   this.loadHistory = function() {
     try {
@@ -26,11 +112,10 @@ function chatBot() {
       this.chatHistory = [];
     }
   };
-  
+
   // Save chat history to sessionStorage
   this.saveHistory = function() {
     try {
-      // Keep only the last MAX_HISTORY_LENGTH messages
       if (this.chatHistory.length > MAX_HISTORY_LENGTH) {
         this.chatHistory = this.chatHistory.slice(-MAX_HISTORY_LENGTH);
       }
@@ -39,262 +124,182 @@ function chatBot() {
       console.error('Error saving chat history:', error);
     }
   };
-  
+
   // Add message to history
   this.addToHistory = function(role, content) {
     this.chatHistory.push({ role, content });
-    if (this.chatHistory.length > MAX_HISTORY_LENGTH) {
-      this.chatHistory = this.chatHistory.slice(-MAX_HISTORY_LENGTH);
-    }
     this.saveHistory();
   };
-  
+
   // Clear chat history
   this.clearHistory = function() {
     this.chatHistory = [];
-    this.saveHistory();
-    // Reset rate limit when clearing history
-    this.resetRateLimit();
+    sessionStorage.removeItem(CHAT_HISTORY_KEY);
   };
 
-  // Force reset rate limit (for when API keys are changed)
-  this.forceResetRateLimit = function() {
-    console.log('Force resetting rate limit status...');
-    this.resetRateLimit();
-    // Also clear any stored reset time
-    sessionStorage.removeItem('melissa_reset_time');
-    console.log('Rate limit status cleared. Ready for new API keys.');
-  };
+  // Update online/offline/loading status in UI
+  this.updateStatus = function(status, label) {
+    const $status = $('.contact-status');
+    const $dot = $('.online-dot');
+    const $text = $('.status-text');
 
-  // Rate limit management
-  this.setRateLimit = function(resetTime = null) {
-    isRateLimited = true;
-    sessionStorage.setItem(RATE_LIMIT_KEY, 'true');
-    
-    // Store the reset time if provided
-    if (resetTime) {
-      sessionStorage.setItem('melissa_reset_time', resetTime);
-    }
-    
-    this.updateStatus('offline');
-    this.showRateLimitAlert(resetTime);
-    this.disableInput();
-    this.scheduleAutoReset(resetTime);
-  };
+    $status.removeClass('offline loading');
+    $dot.removeClass('offline loading');
 
-  this.resetRateLimit = function() {
-    isRateLimited = false;
-    sessionStorage.removeItem(RATE_LIMIT_KEY);
-    sessionStorage.removeItem('melissa_reset_time');
-    this.updateStatus('online');
-    this.hideRateLimitAlert();
-    this.enableInput();
-    if (rateLimitTimer) {
-      clearInterval(rateLimitTimer);
-      rateLimitTimer = null;
-    }
-  };
-
-  this.scheduleAutoReset = function(resetTime = null) {
-    let resetDate;
-    
-    if (resetTime) {
-      // Use the actual reset time from API
-      resetDate = new Date(resetTime);
+    if (status === 'loading') {
+      $status.addClass('loading');
+      $dot.addClass('loading');
+      $text.text(label || 'Loading AI...');
+    } else if (status === 'offline') {
+      $status.addClass('offline');
+      $dot.addClass('offline');
+      $text.text(label || 'Offline');
     } else {
-      // Fallback to 24 hours from now
-      resetDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    }
-    
-    const timeUntilReset = resetDate.getTime() - Date.now();
-    
-    // Only schedule if the reset time is in the future
-    if (timeUntilReset > 0) {
-      setTimeout(() => {
-        this.resetRateLimit();
-        // Trigger a custom event that the main script can listen to
-        $(document).trigger('melissaBackOnline');
-      }, timeUntilReset);
+      $text.text(label || 'Online (Offline AI)');
     }
   };
 
-  this.checkRateLimit = function() {
-    const rateLimited = sessionStorage.getItem(RATE_LIMIT_KEY);
-    if (rateLimited === 'true') {
-      isRateLimited = true;
-      this.updateStatus('offline');
-      this.disableInput();
-      return true;
+  // Check if browser has WebGPU support
+  this.checkWebGPU = async function() {
+    if (!navigator.gpu) {
+      return { supported: false, message: "WebGPU is not supported in this browser. Please use Google Chrome, Edge, or Brave with WebGPU enabled." };
     }
-    return false;
-  };
-
-  this.updateStatus = function(status) {
-    const statusElement = $('.contact-status');
-    const dotElement = $('.online-dot');
-    const statusText = $('.status-text');
-    
-    if (status === 'offline') {
-      statusElement.addClass('offline');
-      dotElement.addClass('offline');
-      statusText.text('Offline');
-    } else {
-      statusElement.removeClass('offline');
-      dotElement.removeClass('offline');
-      statusText.text('Online');
-    }
-  };
-
-  this.showRateLimitAlert = function(resetTime = null) {
-    // Remove existing alert if any
-    $('.rate-limit-alert').remove();
-    
-    let resetTimeString, resetDateString;
-
-    if (resetTime) {
-      const now = new Date();
-      const resetDate = new Date(resetTime);
-      const timeDiff = resetDate.getTime() - now.getTime();
-
-      if (timeDiff < 0) {
-        resetTimeString = 'now';
-        resetDateString = '';
-      } else {
-        resetTimeString = resetDate.toLocaleTimeString('en-US', {
-          hour12: true,
-          hour: 'numeric',
-          minute: '2-digit'
-        });
-        resetDateString = resetDate.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric'
-        });
-      }
-    } else {
-      // Fallback to 24 hours from now
-      const now = new Date();
-      const resetDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      resetTimeString = resetDate.toLocaleTimeString('en-US', {
-        hour12: true,
-        hour: 'numeric',
-        minute: '2-digit'
-      });
-      resetDateString = resetDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-    
-    const alertHtml = `
-      <div class="rate-limit-alert">
-        Melissa set the wake-up alarm for <span class="timer">${resetTimeString} ${resetDateString}</span>
-      </div>
-    `;
-    
-    $('body').append(alertHtml);
-    
-    // Show alert with animation
-    setTimeout(() => {
-      $('.rate-limit-alert').addClass('show');
-    }, 100);
-    
-    // Hide alert after 5 seconds
-    setTimeout(() => {
-      $('.rate-limit-alert').removeClass('show');
-      setTimeout(() => {
-        $('.rate-limit-alert').remove();
-      }, 300);
-    }, 5000);
-  };
-
-  this.hideRateLimitAlert = function() {
-    $('.rate-limit-alert').removeClass('show');
-    setTimeout(() => {
-      $('.rate-limit-alert').remove();
-    }, 300);
-  };
-
-  this.disableInput = function() {
-    $('.input-area').addClass('rate-limited');
-  };
-
-  this.enableInput = function() {
-    $('.input-area').removeClass('rate-limited');
-  };
-  
-  this.respondTo = async function (input) {
     try {
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message: input, 
-          history: this.chatHistory 
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        // Check if it's a rate limit error
-        if (response.status === 429 || 
-            (data.response && data.response.includes("I'm feeling very tired"))) {
-          this.setRateLimit(data.resetTime); // Pass resetTime from API
-          throw new Error(data.response || "I'm feeling very tired tonight, will talk tomorrow xoxo 😴");
-        }
-        // Return the actual error message from the backend
-        throw new Error(data.response || "I'm having trouble connecting right now. Please try again in a moment.");
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        return { supported: false, message: "No compatible WebGPU graphics adapter found on your system." };
       }
-
-      return data.response || "I'm sorry, I didn't get that.";
-    } catch (error) {
-      console.error('Error calling API:', error);
-      // If it's our custom error message, throw it as is
-      if (error.message && (error.message.includes("I'm feeling very tired") || 
-                           error.message.includes("I'm having trouble connecting"))) {
-        throw error;
-      }
-      // Otherwise throw a generic error
-      throw new Error("I'm having trouble connecting right now. Please try again in a moment.");
+      return { supported: true, adapter };
+    } catch (err) {
+      return { supported: false, message: err.message };
     }
   };
 
-  this.match = function (regex) {
-    return new RegExp(regex).test(this.input);
+  // Initialize or reload the WebLLM engine
+  this.loadModel = async function(modelId, onProgress) {
+    this.currentModelId = modelId;
+    this.isModelLoading = true;
+    this.isModelReady = false;
+    this.updateStatus('loading', 'Loading model...');
+
+    const initProgressCallback = (report) => {
+      // report has { progress: 0..1, text: string, timeElapsed: number }
+      if (onProgress) {
+        onProgress(report);
+      }
+    };
+
+    try {
+      if (this.engine) {
+        await this.engine.reload(modelId, { initProgressCallback });
+      } else {
+        this.engine = await webllm.CreateMLCEngine(modelId, {
+          initProgressCallback,
+          logLevel: "WARN"
+        });
+      }
+
+      this.isModelReady = true;
+      this.isModelLoading = false;
+      localStorage.setItem(SELECTED_MODEL_KEY, modelId);
+      this.updateStatus('online', 'Online (Offline AI)');
+      return true;
+    } catch (err) {
+      console.error('Failed to load WebLLM model:', err);
+      this.isModelReady = false;
+      this.isModelLoading = false;
+      this.updateStatus('offline', 'Load Failed');
+      throw err;
+    }
+  };
+
+  // Generate response with streaming tokens
+  this.respondStream = async function(input, onChunk) {
+    // 1. Fast match check for common queries to save battery/GPU
+    const cleanInput = input.toLowerCase().trim().replace(/[?!.,;:]+$/, "");
+    if (localResponses[cleanInput]) {
+      const match = localResponses[cleanInput];
+      const replyText = typeof match === 'function' ? match() : match[Math.floor(Math.random() * match.length)];
+      if (onChunk) {
+        onChunk(replyText, true);
+      }
+      return replyText;
+    }
+
+    if (!this.isModelReady) {
+      if (this.isModelLoading) {
+        throw new Error("Melissa's offline AI is still downloading or initializing. Please wait a moment! ⏳");
+      }
+      throw new Error("Melissa's offline AI is not ready. Please make sure WebGPU is enabled in your browser.");
+    }
+
+    // 2. Build conversation context
+    const messages = [
+      {
+        role: "system",
+        content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly (1 to 2 sentences max). Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Chatspeak / Textese."
+      },
+      ...this.chatHistory.slice(-6).map(m => ({ role: m.role, content: m.content })),
+      { role: "user", content: input }
+    ];
+
+    const stream = await this.engine.chat.completions.create({
+      messages,
+      max_tokens: 60,
+      temperature: 0.7,
+      stream: true,
+    });
+
+    let fullText = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || "";
+      fullText += delta;
+      if (onChunk) {
+        onChunk(fullText, false);
+      }
+    }
+
+    const trimmed = fullText.trim();
+    if (onChunk) {
+      onChunk(trimmed, true);
+    }
+    return trimmed;
   };
 }
 
-$(function () {
-  var bot = new chatBot();
-  var chat = $('.chat');
-  var input = $('.input-field');
-  var sendBtn = $('.send-btn');
-  var busy = $('.busy');
-  var resetBtn = $('.reset-btn');
-  
-  // Load chat history
+$(async function() {
+  const bot = new MelissaBot();
+  const $chat = $('.chat');
+  const $input = $('.input-field');
+  const $sendBtn = $('.send-btn');
+  const $busy = $('.busy');
+  const $resetBtn = $('.reset-btn');
+  const $modelSelect = $('#model-select');
+  const $progressContainer = $('#ai-progress-container');
+  const $progressBar = $('#ai-progress-bar');
+  const $progressPct = $('#ai-progress-pct');
+  const $progressLabel = $('#ai-progress-label');
+
+  // Load chat history from sessionStorage
   bot.loadHistory();
-  
-  // Check rate limit status on page load
-  bot.checkRateLimit();
 
-  // Listen for Melissa coming back online
-  $(document).on('melissaBackOnline', function() {
-    updateChat('other', "Good morning! I'm back online and ready to chat! 😊");
-    bot.addToHistory('assistant', "Good morning! I'm back online and ready to chat! 😊");
-  });
+  // Set model select dropdown value from localStorage
+  const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
+  if (savedModel && $modelSelect.find(`option[value="${savedModel}"]`).length) {
+    $modelSelect.val(savedModel);
+  }
 
-  var updateChat = function(party, message) {
-    var time = new Date().toLocaleTimeString('en-US', { 
+  // Helper to append message to chat window
+  const updateChat = function(party, message, messageId = null) {
+    const time = new Date().toLocaleTimeString('en-US', { 
       hour12: true, 
       hour: "numeric", 
       minute: "numeric" 
     });
     
-    var messageHtml = `
-      <div class="${party}">
+    const idAttr = messageId ? `id="${messageId}"` : '';
+    const messageHtml = `
+      <div class="${party}" ${idAttr}>
         <div class="party">${party === 'you' ? 'You' : 'Melissa'}</div>
         <div class="msg-bubble">
           <div class="text">${message}</div>
@@ -303,137 +308,180 @@ $(function () {
       </div>
     `;
     
-    chat.append(messageHtml);
-    chat.scrollTop(chat[0].scrollHeight);
+    $chat.append(messageHtml);
+    $chat.scrollTop($chat[0].scrollHeight);
   };
 
-  var submitChat = async function () {
-    var inputText = input.val().trim();
-    if (!inputText) return;
-
-    // Check if rate limited
-    if (isRateLimited) {
-      return; // Don't send message if rate limited
-    }
-
-    // Clear input
-    input.val('');
-    
-    // Update UI with user message
-    updateChat('you', inputText);
-    bot.addToHistory('user', inputText);
-    
-    // Show "Melissa is typing" indicator
-    busy.text("Melissa is typing...");
-    busy.show();
-    
+  // Play audio notification
+  const playNotificationSound = function() {
     try {
-      // Get bot response
-      var reply = await bot.respondTo(inputText);
-      
-      // Hide typing indicator
-      busy.hide();
-      
-      // Update UI with bot response
-      updateChat('other', reply);
+      const audio = new Audio('chat.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio playback info:', e));
+    } catch (e) {
+      // Audio autoplay may be prevented before user interaction
+    }
+  };
+
+  // Progress update callback
+  const handleProgress = function(report) {
+    $progressContainer.show();
+    const pct = Math.round((report.progress || 0) * 100);
+    $progressBar.css('width', pct + '%');
+    $progressPct.text(pct + '%');
+
+    // Clean up text for user friendly display
+    let labelText = report.text || 'Loading weights...';
+    if (labelText.length > 60) {
+      labelText = labelText.substring(0, 57) + '...';
+    }
+    $progressLabel.text(labelText);
+
+    if (report.progress >= 1) {
+      setTimeout(() => {
+        $progressContainer.fadeOut(600);
+      }, 1500);
+    }
+  };
+
+  // Initialize WebLLM model
+  const startLoadingModel = async function(modelId) {
+    try {
+      $progressContainer.show();
+      $progressLabel.text("Connecting to WebGPU & loading model...");
+      $progressBar.css('width', '5%');
+      $progressPct.text('5%');
+
+      await bot.loadModel(modelId, handleProgress);
+      console.log('Model ready for offline inference!');
+    } catch (err) {
+      console.error("Initialization error:", err);
+      $progressLabel.text("Failed to load model: " + err.message);
+      $progressContainer.show();
+      updateChat('other', `⚠️ Could not initialize offline model (${err.message}). If using Chrome, ensure WebGPU and hardware acceleration are enabled in settings.`);
+    }
+  };
+
+  // Check WebGPU compatibility on launch
+  const gpuCheck = await bot.checkWebGPU();
+  if (!gpuCheck.supported) {
+    bot.updateStatus('offline', 'WebGPU Required');
+    $progressContainer.show();
+    $progressLabel.text("WebGPU not detected in this browser");
+    $progressPct.text("N/A");
+    updateChat('other', `⚠️ **WebGPU is required** for Melissa to run offline inside your browser. Please open this app in Google Chrome, Microsoft Edge, or Brave on a computer with graphics acceleration enabled!`);
+  } else {
+    // Start loading chosen model
+    const selectedModel = $modelSelect.val();
+    startLoadingModel(selectedModel);
+  }
+
+  // Handle Model change
+  $modelSelect.on('change', async function() {
+    const newModel = $(this).val();
+    if (newModel !== bot.currentModelId) {
+      updateChat('other', `Switching offline brain to **${$(this).find('option:selected').text()}**...`);
+      await startLoadingModel(newModel);
+    }
+  });
+
+  // Submit chat message
+  const submitChat = async function() {
+    const text = $input.val().trim();
+    if (!text) return;
+
+    $input.val('');
+    $input.css('height', 'auto');
+
+    // Render user message
+    updateChat('you', text);
+    bot.addToHistory('user', text);
+
+    // Create a streaming response bubble
+    const bubbleId = 'msg-' + Date.now();
+    updateChat('other', '<span class="typing-cursor"></span>', bubbleId);
+    const $bubble = $('#' + bubbleId);
+    const $textElem = $bubble.find('.text');
+
+    $busy.text("Melissa is thinking...");
+    $busy.show();
+
+    try {
+      let hasReceivedFirstChunk = false;
+
+      const reply = await bot.respondStream(text, (currentText, isDone) => {
+        if (!hasReceivedFirstChunk && currentText) {
+          hasReceivedFirstChunk = true;
+          $busy.hide();
+        }
+
+        if (isDone) {
+          $textElem.text(currentText);
+        } else {
+          $textElem.html(escapeHtml(currentText) + '<span class="typing-cursor"></span>');
+        }
+        $chat.scrollTop($chat[0].scrollHeight);
+      });
+
+      $busy.hide();
+      $textElem.text(reply);
       bot.addToHistory('assistant', reply);
-      
-      // Play notification sound
       playNotificationSound();
-      
-    } catch (error) {
-      console.error('Error in submitChat:', error);
-      busy.hide();
-      
-      // Show the actual error message from the backend
-      updateChat('other', error.message);
-      
-      // If it's a rate limit error, don't show it again
-      if (error.message && error.message.includes("I'm feeling very tired")) {
-        // The rate limit is already handled by setRateLimit()
-        // Don't add this message to history to prevent showing it again
-        return;
-      }
-      
-      // Add other error messages to history
-      bot.addToHistory('assistant', error.message);
+
+    } catch (err) {
+      console.error('Chat error:', err);
+      $busy.hide();
+      $textElem.text(err.message || "Oops! I encountered an error. Please try again.");
     }
   };
 
-  var playNotificationSound = function() {
-    try {
-      console.log('Attempting to play chat.mp3...');
-      var audio = new Audio('chat.mp3');
-      audio.volume = 1; // Set volume to 100%
-      
-      // Add event listeners for debugging
-      audio.addEventListener('loadstart', function() {
-        console.log('Audio load started');
-      });
-      
-      audio.addEventListener('canplay', function() {
-        console.log('Audio can play');
-      });
-      
-      audio.addEventListener('error', function(e) {
-        console.log('Audio error:', e);
-        console.log('Audio error details:', e.target.error);
-        console.log('Audio src:', e.target.src);
-      });
-      
-      // Simple play with error handling
-      audio.play().catch(function(error) {
-        console.log('Audio play failed:', error);
-        // No fallback - just log the error
-      });
-    } catch (error) {
-      console.log('Audio creation failed:', error);
-      // No fallback - just log the error
-    }
-  };
+  // Helper to escape HTML inside streaming bubble
+  function escapeHtml(string) {
+    return String(string)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
-  // Handle send button click
-  sendBtn.on('click', submitChat);
+  // Send button click
+  $sendBtn.on('click', submitChat);
 
-  // Handle enter key press
-  input.on('keypress', function(e) {
+  // Enter key press (without shift)
+  $input.on('keypress', function(e) {
     if (e.which === 13 && !e.shiftKey) {
       e.preventDefault();
       submitChat();
     }
   });
 
-  // Handle reset button click
-  resetBtn.on('click', function() {
+  // Clear chat / Reset button
+  $resetBtn.on('click', function() {
     bot.clearHistory();
-    chat.empty();
-    // Force reset rate limit status (for when API keys are changed)
-    bot.forceResetRateLimit();
-    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
-    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+    $chat.empty();
+    const welcome = "Hi there, I'm Melissa! How can I help you today? (I run 100% offline!)";
+    updateChat('other', welcome);
+    bot.addToHistory('assistant', welcome);
   });
 
-  // Auto-resize textarea
-  input.on('input', function() {
+  // Auto-resize input textarea
+  $input.on('input', function() {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 100) + 'px';
   });
 
-  // Initialize chat
+  // Initialize UI with existing chat history or greeting
   if (bot.chatHistory.length === 0) {
-    updateChat('other', "Hi there, I'm Melissa! How can I help you today?");
-    bot.addToHistory('assistant', "Hi there, I'm Melissa! How can I help you today?");
+    const welcome = "Hi there, I'm Melissa! How can I help you today? I'm running 100% offline in your browser!";
+    updateChat('other', welcome);
+    bot.addToHistory('assistant', welcome);
   } else {
-    // Restore chat history to UI
     bot.chatHistory.forEach(function(msg) {
       updateChat(msg.role === 'user' ? 'you' : 'other', msg.content);
     });
   }
 
-  // Global function for debugging - users can call this from console
-  window.resetMelissaRateLimit = function() {
-    console.log('Force resetting Melissa rate limit...');
-    bot.forceResetRateLimit();
-    console.log('Rate limit reset complete. You can now test with new API keys.');
-  };
+  // Expose for console debugging if needed
+  window.melissaBot = bot;
 });
