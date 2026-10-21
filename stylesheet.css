@@ -89,6 +89,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   animation: statusBlink 1s infinite;
 }
 
@@ -529,6 +530,13 @@ body {
   transform: scale(0.95);
 }
 
+.send-btn:disabled,
+.send-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* Responsive Design */
 @media (max-width: 480px) {
   .header {
@@ -545,7 +553,8 @@ body {
   }
   
   .contact-status {
-    font-size: 14px;
+    font-size: 13px;
+    white-space: nowrap;
   }
   
   .model-select {

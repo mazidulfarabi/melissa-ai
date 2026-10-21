@@ -97,5 +97,5 @@ You can choose your preferred model directly from the dropdown in Melissa's head
 ## How First-Time Download Works
 
 1. On your very first visit, Melissa will display a sleek progress bar as the model weights download from Hugging Face into your browser's local CacheStorage / IndexedDB.
-2. Once the download reaches 100%, Melissa's status turns **Online (Offline AI)**.
+2. Once the download reaches 100%, Melissa's status turns **Online**.
 3. On all future visits, Melissa loads in **under 2 seconds** and works even if your WiFi is completely disconnected!

@@ -155,7 +155,7 @@ function MelissaBot() {
       $dot.addClass('offline');
       $text.text(label || 'Offline');
     } else {
-      $text.text(label || 'Online (Offline AI)');
+      $text.text(label || 'Online');
     }
   };
 
@@ -202,7 +202,7 @@ function MelissaBot() {
       this.isModelReady = true;
       this.isModelLoading = false;
       localStorage.setItem(SELECTED_MODEL_KEY, modelId);
-      this.updateStatus('online', 'Online (Offline AI)');
+      this.updateStatus('online', 'Online');
       return true;
     } catch (err) {
       console.error('Failed to load WebLLM model:', err);
@@ -377,7 +377,14 @@ $(async function() {
   }
 
   // Handle Model change
+  let isGenerating = false;
+
   $modelSelect.on('change', async function() {
+    if (isGenerating) {
+      // Revert selection if currently generating
+      $(this).val(bot.currentModelId);
+      return;
+    }
     const newModel = $(this).val();
     if (newModel !== bot.currentModelId) {
       updateChat('other', `Switching offline brain to **${$(this).find('option:selected').text()}**...`);
@@ -387,11 +394,23 @@ $(async function() {
 
   // Submit chat message
   const submitChat = async function() {
+    if (isGenerating) return;
     const text = $input.val().trim();
     if (!text) return;
 
+    if (!bot.isModelReady) {
+      if (bot.isModelLoading) {
+        updateChat('other', "Melissa's offline AI is still loading. Please wait a moment! ⏳");
+      } else {
+        updateChat('other', "Melissa's offline AI is not ready. Please make sure WebGPU is enabled in your browser.");
+      }
+      return;
+    }
+
     $input.val('');
     $input.css('height', 'auto');
+    isGenerating = true;
+    $sendBtn.prop('disabled', true).addClass('disabled');
 
     // Render user message
     updateChat('you', text);
@@ -431,7 +450,15 @@ $(async function() {
     } catch (err) {
       console.error('Chat error:', err);
       $busy.hide();
-      $textElem.text(err.message || "Oops! I encountered an error. Please try again.");
+      let errorMsg = err.message || "Oops! I encountered an error. Please try again.";
+      if (errorMsg.includes('mapAsync') || errorMsg.includes('GPUBuffer') || errorMsg.includes('unmapped')) {
+        errorMsg = "Oops! My GPU buffer had a temporary glitch. Please try sending your message again! 🔄";
+      }
+      $textElem.text(errorMsg);
+    } finally {
+      isGenerating = false;
+      $sendBtn.prop('disabled', false).removeClass('disabled');
+      $input.focus();
     }
   };
 
