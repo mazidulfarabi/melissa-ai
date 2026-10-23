@@ -231,31 +231,6 @@ body {
   gap: 8px;
 }
 
-.model-select-wrapper {
-  display: flex;
-  align-items: center;
-}
-
-.model-select {
-  background: rgba(0, 122, 255, 0.08);
-  border: 1px solid rgba(0, 122, 255, 0.25);
-  border-radius: 12px;
-  padding: 5px 8px;
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  color: #007AFF;
-  cursor: pointer;
-  outline: none;
-  max-width: 170px;
-  transition: all 0.2s ease;
-}
-
-.model-select:hover, .model-select:focus {
-  background: rgba(0, 122, 255, 0.15);
-  border-color: #007AFF;
-}
-
 /* Offline AI Progress Bar */
 .ai-progress-container {
   background: rgba(240, 246, 255, 0.95);

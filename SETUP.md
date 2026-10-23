@@ -75,22 +75,11 @@ Melissa uses WebGPU for hardware acceleration directly on your graphics card or 
 
 ---
 
-## Supported Offline AI Models
-
-You can choose your preferred model directly from the dropdown in Melissa's header:
-
-1. **Qwen2.5 0.5B Instruct** (`Qwen2.5-0.5B-Instruct-q4f32_1-MLC`)
-   * **Size**: ~350 MB download
-   * **Best for**: Balanced intelligence, slang, and casual banter.
-   * **Quantization**: 4-bit float32 (compatible with all WebGPU implementations).
-
-2. **SmolLM2 360M Instruct** (`SmolLM2-360M-Instruct-q4f32_1-MLC`)
-   * **Size**: ~200 MB download
-   * **Best for**: Ultra-fast inference on budget laptops and mobile devices.
-
-3. **Llama 3.2 1B Instruct** (`Llama-3.2-1B-Instruct-q4f32_1-MLC`)
-   * **Size**: ~700 MB download
-   * **Best for**: Richer and smarter conversational depth.
+## Offline AI Model
+Melissa is powered out-of-the-box by **SmolLM2 360M Instruct** (`SmolLM2-360M-Instruct-q4f32_1-MLC`):
+* **Size**: Only ~200 MB download (ultra-lightweight & fast)
+* **Best for**: Instant startup, minimal GPU/RAM overhead, and smooth banter on any device.
+* **Zero Configuration**: Users do not need to choose models; Melissa loads the optimized smallest model automatically.
 
 ---
 

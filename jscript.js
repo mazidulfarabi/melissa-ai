@@ -1,10 +1,11 @@
 // Melissa AI - 100% In-Browser Offline AI (Powered by WebLLM & WebGPU)
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
-// Storage keys
+// Storage keys & configuration
 const CHAT_HISTORY_KEY = 'melissa_chat_history';
-const SELECTED_MODEL_KEY = 'melissa_selected_model';
 const MAX_HISTORY_LENGTH = 30;
+// Smallest offline model (~200MB download, 360M params)
+const DEFAULT_MODEL = 'SmolLM2-360M-Instruct-q4f32_1-MLC';
 
 // Fast local responses for common trivial queries (saves GPU & delivers instant 0ms replies)
 const localResponses = {
@@ -98,7 +99,7 @@ function MelissaBot() {
   this.chatHistory = [];
   this.isModelReady = false;
   this.isModelLoading = false;
-  this.currentModelId = localStorage.getItem(SELECTED_MODEL_KEY) || 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
+  this.currentModelId = DEFAULT_MODEL;
 
   // Load chat history from sessionStorage
   this.loadHistory = function() {
@@ -176,7 +177,7 @@ function MelissaBot() {
   };
 
   // Initialize or reload the WebLLM engine
-  this.loadModel = async function(modelId, onProgress) {
+  this.loadModel = async function(modelId = DEFAULT_MODEL, onProgress) {
     this.currentModelId = modelId;
     this.isModelLoading = true;
     this.isModelReady = false;
@@ -201,7 +202,6 @@ function MelissaBot() {
 
       this.isModelReady = true;
       this.isModelLoading = false;
-      localStorage.setItem(SELECTED_MODEL_KEY, modelId);
       this.updateStatus('online', 'Online');
       return true;
     } catch (err) {
@@ -274,7 +274,6 @@ $(async function() {
   const $sendBtn = $('.send-btn');
   const $busy = $('.busy');
   const $resetBtn = $('.reset-btn');
-  const $modelSelect = $('#model-select');
   const $progressContainer = $('#ai-progress-container');
   const $progressBar = $('#ai-progress-bar');
   const $progressPct = $('#ai-progress-pct');
@@ -282,12 +281,6 @@ $(async function() {
 
   // Load chat history from sessionStorage
   bot.loadHistory();
-
-  // Set model select dropdown value from localStorage
-  const savedModel = localStorage.getItem(SELECTED_MODEL_KEY);
-  if (savedModel && $modelSelect.find(`option[value="${savedModel}"]`).length) {
-    $modelSelect.val(savedModel);
-  }
 
   // Helper to append message to chat window
   const updateChat = function(party, message, messageId = null) {
@@ -371,26 +364,11 @@ $(async function() {
     $progressPct.text("N/A");
     updateChat('other', `⚠️ **WebGPU is required** for Melissa to run offline inside your browser. Please open this app in Google Chrome, Microsoft Edge, or Brave on a computer with graphics acceleration enabled!`);
   } else {
-    // Start loading chosen model
-    const selectedModel = $modelSelect.val();
-    startLoadingModel(selectedModel);
+    // Start loading the default smallest model (SmolLM2 360M ~200MB)
+    startLoadingModel(DEFAULT_MODEL);
   }
 
-  // Handle Model change
   let isGenerating = false;
-
-  $modelSelect.on('change', async function() {
-    if (isGenerating) {
-      // Revert selection if currently generating
-      $(this).val(bot.currentModelId);
-      return;
-    }
-    const newModel = $(this).val();
-    if (newModel !== bot.currentModelId) {
-      updateChat('other', `Switching offline brain to **${$(this).find('option:selected').text()}**...`);
-      await startLoadingModel(newModel);
-    }
-  });
 
   // Submit chat message
   const submitChat = async function() {
