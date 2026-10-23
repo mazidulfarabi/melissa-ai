@@ -4,8 +4,8 @@ import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 // Storage keys & configuration
 const CHAT_HISTORY_KEY = 'melissa_chat_history';
 const MAX_HISTORY_LENGTH = 30;
-// Smallest offline model (~200MB download, 360M params)
-const DEFAULT_MODEL = 'SmolLM2-360M-Instruct-q4f32_1-MLC';
+// Smallest production-grade offline model (~350MB download, 0.5B params, fast & no repetition loops)
+const DEFAULT_MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
 
 // Fast local responses for common trivial queries (saves GPU & delivers instant 0ms replies)
 const localResponses = {
@@ -94,6 +94,56 @@ const localResponses = {
   'thank you': ["You're welcome! 😊", "No problem! 👍", "Anytime! 😄"]
 };
 
+// Detect repetitive phrase or sentence loops in generated text
+function hasRepetitionLoop(text) {
+  if (!text || text.length < 12) return false;
+
+  // 1. Check for immediate consecutive duplicate sentences
+  const parts = text.split(/(?<=[.!?\n])\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1].trim().toLowerCase();
+    const prev = parts[parts.length - 2].trim().toLowerCase();
+    if (last.length >= 5 && (last === prev || prev.endsWith(last) || last.endsWith(prev))) {
+      return true;
+    }
+  }
+
+  // 2. Check for repeated phrases of 7+ characters appearing consecutively
+  const repeatPattern = /(.{7,}?)\s*\1/i;
+  return repeatPattern.test(text);
+}
+
+// Clean repetitive text to keep only the initial unique sentence
+function cleanRepetitionLoop(text) {
+  if (!text) return "";
+
+  const parts = text.split(/(?<=[.!?\n])\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const seen = new Set();
+    const cleanParts = [];
+    for (const part of parts) {
+      const norm = part.trim().toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        cleanParts.push(part);
+      } else {
+        break; // Stop at first repetition
+      }
+    }
+    if (cleanParts.length > 0) {
+      return cleanParts.join(" ").trim();
+    }
+  }
+
+  const match = text.match(/(.{7,}?)\s*\1/i);
+  if (match) {
+    const idx = text.indexOf(match[0]);
+    return text.substring(0, idx + match[1].length).trim();
+  }
+
+  return text.trim();
+}
+
 function MelissaBot() {
   this.engine = null;
   this.chatHistory = [];
@@ -101,12 +151,17 @@ function MelissaBot() {
   this.isModelLoading = false;
   this.currentModelId = DEFAULT_MODEL;
 
-  // Load chat history from sessionStorage
+  // Load chat history from sessionStorage (auto-sanitize any legacy corrupted loops)
   this.loadHistory = function() {
     try {
       const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
       if (saved) {
-        this.chatHistory = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          this.chatHistory = parsed
+            .map(m => ({ role: m.role, content: cleanRepetitionLoop(m.content || "") }))
+            .filter(m => m.content.length > 0 && !hasRepetitionLoop(m.content));
+        }
       }
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -126,9 +181,10 @@ function MelissaBot() {
     }
   };
 
-  // Add message to history
+  // Add message to history with sanitization
   this.addToHistory = function(role, content) {
-    this.chatHistory.push({ role, content });
+    const cleaned = cleanRepetitionLoop(content);
+    this.chatHistory.push({ role, content: cleaned });
     this.saveHistory();
   };
 
@@ -215,7 +271,7 @@ function MelissaBot() {
 
   // Generate response with streaming tokens
   this.respondStream = async function(input, onChunk) {
-    // 1. Fast match check for common queries to save battery/GPU
+    // 1. Fast match check for common queries to save battery/GPU (instant 0ms replies)
     const cleanInput = input.toLowerCase().trim().replace(/[?!.,;:]+$/, "");
     if (localResponses[cleanInput]) {
       const match = localResponses[cleanInput];
@@ -226,6 +282,20 @@ function MelissaBot() {
       return replyText;
     }
 
+    // Word boundary check for fast instant replies (e.g. "hey melissa", "hi there")
+    for (const [key, responses] of Object.entries(localResponses)) {
+      if (key.length > 2) {
+        const regex = new RegExp(`\\b${key}\\b`, 'i');
+        if (regex.test(cleanInput)) {
+          const replyText = typeof responses === 'function' ? responses() : responses[Math.floor(Math.random() * responses.length)];
+          if (onChunk) {
+            onChunk(replyText, true);
+          }
+          return replyText;
+        }
+      }
+    }
+
     if (!this.isModelReady) {
       if (this.isModelLoading) {
         throw new Error("Melissa's offline AI is still downloading or initializing. Please wait a moment! ⏳");
@@ -233,33 +303,48 @@ function MelissaBot() {
       throw new Error("Melissa's offline AI is not ready. Please make sure WebGPU is enabled in your browser.");
     }
 
-    // 2. Build conversation context
+    // 2. Build concise conversation context
     const messages = [
       {
         role: "system",
-        content: "You are Melissa, a cool cyber-girl. Keep responses short and friendly (1 to 2 sentences max). Use Internet Slang Acronyms or Texting Abbreviations, Initialisms, Emoticons, Slang / Chatspeak / Textese."
+        content: "You are Melissa, a cool cyber-girl friend. Reply in 1-2 short casual sentences using texting slang and emoticons. Never repeat sentences or phrases."
       },
-      ...this.chatHistory.slice(-6).map(m => ({ role: m.role, content: m.content })),
+      ...this.chatHistory.slice(-4).map(m => ({ role: m.role, content: m.content })),
       { role: "user", content: input }
     ];
 
     const stream = await this.engine.chat.completions.create({
       messages,
-      max_tokens: 60,
-      temperature: 0.7,
+      max_tokens: 40,
+      temperature: 0.6,
+      top_p: 0.85,
+      repetition_penalty: 1.25,
+      presence_penalty: 0.5,
+      frequency_penalty: 0.5,
       stream: true,
     });
 
     let fullText = "";
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || "";
+      if (!delta) continue;
       fullText += delta;
+
+      // Real-time loop prevention: break early if a repetition loop is detected
+      if (hasRepetitionLoop(fullText)) {
+        fullText = cleanRepetitionLoop(fullText);
+        if (onChunk) {
+          onChunk(fullText, true);
+        }
+        break;
+      }
+
       if (onChunk) {
         onChunk(fullText, false);
       }
     }
 
-    const trimmed = fullText.trim();
+    const trimmed = cleanRepetitionLoop(fullText.trim());
     if (onChunk) {
       onChunk(trimmed, true);
     }
@@ -364,7 +449,7 @@ $(async function() {
     $progressPct.text("N/A");
     updateChat('other', `⚠️ **WebGPU is required** for Melissa to run offline inside your browser. Please open this app in Google Chrome, Microsoft Edge, or Brave on a computer with graphics acceleration enabled!`);
   } else {
-    // Start loading the default smallest model (SmolLM2 360M ~200MB)
+    // Start loading the default fast model (Qwen2.5 0.5B ~350MB)
     startLoadingModel(DEFAULT_MODEL);
   }
 

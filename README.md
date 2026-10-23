@@ -7,7 +7,7 @@ A modern, intelligent chatbot powered by **WebLLM and WebGPU** that runs **100% 
 - **🌐 100% Offline & In-Browser**: Powered by WebLLM via WebGPU. Once downloaded, Melissa works completely offline without an internet connection!
 - **⚡ Zero API Keys & Zero Cost**: No accounts, no credit cards, no OpenRouter or OpenAI keys needed.
 - **🚀 Zero Rate Limits**: Chat endlessly without getting 429 errors or waiting for daily resets.
-- **🪶 Ultra-Lightweight & Fast Model**: Powered by **SmolLM2 360M** (~200MB download), the smallest and fastest in-browser model for smooth performance on any device without requiring users to configure or choose models.
+- **🪶 Ultra-Lightweight & Fast Model**: Powered by **Qwen2.5 0.5B** (~350MB download), the highest-rated sub-1B in-browser model for crisp, intelligent, and snappy conversations without repetition loops.
 - **🌊 Real-time Token Streaming**: Responses stream token-by-token with a sleek live typing cursor.
 - **🔒 Complete Privacy**: All inference runs on your device's GPU/hardware. Your chats never leave your browser.
 - **💾 Automatic Caching**: Model weights are stored in browser CacheStorage/IndexedDB. Subsequent visits load in 1–2 seconds!
