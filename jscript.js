@@ -1,13 +1,15 @@
-// Melissa AI - 100% In-Browser Offline AI (Powered by WebLLM & WebGPU)
-import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+// Melissa AI - Powered by Cloudflare Workers AI & Netlify Edge
+// Fast, responsive, streaming chat client
 
-// Storage keys & configuration
+// API endpoints
+const API_ENDPOINT = '/api/chat';
+const FALLBACK_WORKER_URL = 'https://melissa-ai.anmone-gaming.workers.dev/api/chat';
+
+// Storage keys & limits
 const CHAT_HISTORY_KEY = 'melissa_chat_history';
 const MAX_HISTORY_LENGTH = 30;
-// Smallest production-grade offline model (~350MB download, 0.5B params, fast & no repetition loops)
-const DEFAULT_MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
 
-// Fast local responses for common trivial queries (saves GPU & delivers instant 0ms replies)
+// Fast instant local responses for common queries (delivers instant 0ms replies)
 const localResponses = {
   'hello': [
     "Hey there! 😊 How's it going?",
@@ -68,18 +70,11 @@ const localResponses = {
     "My name is Melissa! What's yours? 👋"
   ],
   'who are you': [
-    "I'm Melissa, your offline AI friend! 😊",
-    "I'm Melissa! Ready to chat anytime, even with no internet! 👋"
+    "I'm Melissa, your AI friend powered by Cloudflare edge intelligence! 😊",
+    "I'm Melissa! Ready to chat anytime! 👋"
   ],
   'what time is it': () => `It's ${new Date().toLocaleTimeString('en-US', { hour12: true, hour: "numeric", minute: "numeric" })}! ⏰`,
   'what day is it': () => `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}! 📅`,
-  'how is the weather': [
-    "I run 100% offline so I can't check current weather sensors, but hope it's nice outside! 🌤️",
-    "I'm totally offline without web access, but hope you're having great weather! ☀️"
-  ],
-  'weather': [
-    "I'm running offline on your device, but hope the weather is lovely wherever you are! 🌤️"
-  ],
   'bye': [
     "Bye! It was nice chatting with you! 👋",
     "See you later! Take care! 😊"
@@ -94,73 +89,17 @@ const localResponses = {
   'thank you': ["You're welcome! 😊", "No problem! 👍", "Anytime! 😄"]
 };
 
-// Detect repetitive phrase or sentence loops in generated text
-function hasRepetitionLoop(text) {
-  if (!text || text.length < 12) return false;
-
-  // 1. Check for immediate consecutive duplicate sentences
-  const parts = text.split(/(?<=[.!?\n])\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    const last = parts[parts.length - 1].trim().toLowerCase();
-    const prev = parts[parts.length - 2].trim().toLowerCase();
-    if (last.length >= 5 && (last === prev || prev.endsWith(last) || last.endsWith(prev))) {
-      return true;
-    }
-  }
-
-  // 2. Check for repeated phrases of 7+ characters appearing consecutively
-  const repeatPattern = /(.{7,}?)\s*\1/i;
-  return repeatPattern.test(text);
-}
-
-// Clean repetitive text to keep only the initial unique sentence
-function cleanRepetitionLoop(text) {
-  if (!text) return "";
-
-  const parts = text.split(/(?<=[.!?\n])\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    const seen = new Set();
-    const cleanParts = [];
-    for (const part of parts) {
-      const norm = part.trim().toLowerCase();
-      if (!seen.has(norm)) {
-        seen.add(norm);
-        cleanParts.push(part);
-      } else {
-        break; // Stop at first repetition
-      }
-    }
-    if (cleanParts.length > 0) {
-      return cleanParts.join(" ").trim();
-    }
-  }
-
-  const match = text.match(/(.{7,}?)\s*\1/i);
-  if (match) {
-    const idx = text.indexOf(match[0]);
-    return text.substring(0, idx + match[1].length).trim();
-  }
-
-  return text.trim();
-}
-
 function MelissaBot() {
-  this.engine = null;
   this.chatHistory = [];
-  this.isModelReady = false;
-  this.isModelLoading = false;
-  this.currentModelId = DEFAULT_MODEL;
 
-  // Load chat history from sessionStorage (auto-sanitize any legacy corrupted loops)
+  // Load chat history from sessionStorage
   this.loadHistory = function() {
     try {
       const saved = sessionStorage.getItem(CHAT_HISTORY_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          this.chatHistory = parsed
-            .map(m => ({ role: m.role, content: cleanRepetitionLoop(m.content || "") }))
-            .filter(m => m.content.length > 0 && !hasRepetitionLoop(m.content));
+          this.chatHistory = parsed.filter(m => m.content && m.content.trim().length > 0);
         }
       }
     } catch (error) {
@@ -181,10 +120,9 @@ function MelissaBot() {
     }
   };
 
-  // Add message to history with sanitization
+  // Add message to history
   this.addToHistory = function(role, content) {
-    const cleaned = cleanRepetitionLoop(content);
-    this.chatHistory.push({ role, content: cleaned });
+    this.chatHistory.push({ role, content: content.trim() });
     this.saveHistory();
   };
 
@@ -206,7 +144,7 @@ function MelissaBot() {
     if (status === 'loading') {
       $status.addClass('loading');
       $dot.addClass('loading');
-      $text.text(label || 'Loading AI...');
+      $text.text(label || 'Thinking...');
     } else if (status === 'offline') {
       $status.addClass('offline');
       $dot.addClass('offline');
@@ -216,156 +154,134 @@ function MelissaBot() {
     }
   };
 
-  // Check if browser has WebGPU support
-  this.checkWebGPU = async function() {
-    if (!navigator.gpu) {
-      return { supported: false, message: "WebGPU is not supported in this browser. Please use Google Chrome, Edge, or Brave with WebGPU enabled." };
-    }
-    try {
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        return { supported: false, message: "No compatible WebGPU graphics adapter found on your system." };
-      }
-      return { supported: true, adapter };
-    } catch (err) {
-      return { supported: false, message: err.message };
-    }
-  };
-
-  // Initialize or reload the WebLLM engine
-  this.loadModel = async function(modelId = DEFAULT_MODEL, onProgress) {
-    this.currentModelId = modelId;
-    this.isModelLoading = true;
-    this.isModelReady = false;
-    this.updateStatus('loading', 'Loading model...');
-
-    const initProgressCallback = (report) => {
-      // report has { progress: 0..1, text: string, timeElapsed: number }
-      if (onProgress) {
-        onProgress(report);
-      }
-    };
-
-    try {
-      if (this.engine) {
-        await this.engine.reload(modelId, { initProgressCallback });
-      } else {
-        this.engine = await webllm.CreateMLCEngine(modelId, {
-          initProgressCallback,
-          logLevel: "WARN"
-        });
-      }
-
-      this.isModelReady = true;
-      this.isModelLoading = false;
-      this.updateStatus('online', 'Online');
-      return true;
-    } catch (err) {
-      console.error('Failed to load WebLLM model:', err);
-      this.isModelReady = false;
-      this.isModelLoading = false;
-      this.updateStatus('offline', 'Load Failed');
-      throw err;
-    }
-  };
-
-  // Generate response with streaming tokens
-  this.respondStream = async function(input, onChunk) {
-    // 1. Fast match check for common queries to save battery/GPU (instant 0ms replies)
+  // Fast local match check
+  this.checkFastMatch = function(input) {
     const cleanInput = input.toLowerCase().trim().replace(/[?!.,;:]+$/, "");
     if (localResponses[cleanInput]) {
       const match = localResponses[cleanInput];
-      const replyText = typeof match === 'function' ? match() : match[Math.floor(Math.random() * match.length)];
-      if (onChunk) {
-        onChunk(replyText, true);
-      }
-      return replyText;
+      return typeof match === 'function' ? match() : match[Math.floor(Math.random() * match.length)];
+    }
+    return null;
+  };
+
+  // Send message and stream response tokens
+  this.sendMessageStream = async function(input, onChunk) {
+    // 1. Instant local fast path
+    const fastReply = this.checkFastMatch(input);
+    if (fastReply) {
+      if (onChunk) onChunk(fastReply, true);
+      return fastReply;
     }
 
-    // Word boundary check for fast instant replies (e.g. "hey melissa", "hi there")
-    for (const [key, responses] of Object.entries(localResponses)) {
-      if (key.length > 2) {
-        const regex = new RegExp(`\\b${key}\\b`, 'i');
-        if (regex.test(cleanInput)) {
-          const replyText = typeof responses === 'function' ? responses() : responses[Math.floor(Math.random() * responses.length)];
-          if (onChunk) {
-            onChunk(replyText, true);
+    const payload = {
+      message: input,
+      history: this.chatHistory.slice(-6),
+      stream: true
+    };
+
+    let response = null;
+    let endpointUsed = API_ENDPOINT;
+
+    // Try primary endpoint (/api/chat), fallback to direct Cloudflare Worker if needed
+    try {
+      response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn('Primary endpoint failed, attempting direct worker fallback:', err);
+    }
+
+    if (!response || !response.ok) {
+      endpointUsed = FALLBACK_WORKER_URL;
+      response = await fetch(FALLBACK_WORKER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`Server returned ${response.status}: ${errText || 'Connection error'}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+
+    // If server returned SSE stream
+    if (contentType.includes('text/event-stream') && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete trailing line
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+
+          if (trimmed.startsWith('data:')) {
+            const dataStr = trimmed.slice(5).trim();
+            if (dataStr === '[DONE]') {
+              continue;
+            }
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              const delta = parsed.response || parsed.choices?.[0]?.delta?.content || '';
+              if (delta) {
+                fullText += delta;
+                if (onChunk) onChunk(fullText, false);
+              }
+            } catch (e) {
+              // Non-JSON SSE line
+              if (dataStr && dataStr !== '[DONE]') {
+                fullText += dataStr;
+                if (onChunk) onChunk(fullText, false);
+              }
+            }
           }
-          return replyText;
         }
       }
+
+      const finalTrimmed = fullText.trim();
+      if (onChunk) onChunk(finalTrimmed, true);
+      return finalTrimmed;
     }
 
-    if (!this.isModelReady) {
-      if (this.isModelLoading) {
-        throw new Error("Melissa's offline AI is still downloading or initializing. Please wait a moment! ⏳");
-      }
-      throw new Error("Melissa's offline AI is not ready. Please make sure WebGPU is enabled in your browser.");
-    }
-
-    // 2. Build concise conversation context
-    const messages = [
-      {
-        role: "system",
-        content: "You are Melissa, a cool cyber-girl friend. Reply in 1-2 short casual sentences using texting slang and emoticons. Never repeat sentences or phrases."
-      },
-      ...this.chatHistory.slice(-4).map(m => ({ role: m.role, content: m.content })),
-      { role: "user", content: input }
-    ];
-
-    const stream = await this.engine.chat.completions.create({
-      messages,
-      max_tokens: 40,
-      temperature: 0.6,
-      top_p: 0.85,
-      repetition_penalty: 1.25,
-      presence_penalty: 0.5,
-      frequency_penalty: 0.5,
-      stream: true,
-    });
-
-    let fullText = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      if (!delta) continue;
-      fullText += delta;
-
-      // Real-time loop prevention: break early if a repetition loop is detected
-      if (hasRepetitionLoop(fullText)) {
-        fullText = cleanRepetitionLoop(fullText);
-        if (onChunk) {
-          onChunk(fullText, true);
-        }
-        break;
-      }
-
-      if (onChunk) {
-        onChunk(fullText, false);
-      }
-    }
-
-    const trimmed = cleanRepetitionLoop(fullText.trim());
-    if (onChunk) {
-      onChunk(trimmed, true);
-    }
-    return trimmed;
+    // Otherwise, parse as JSON
+    const data = await response.json();
+    const reply = data.response || "I couldn't generate a response. Mind trying again?";
+    if (onChunk) onChunk(reply, true);
+    return reply;
   };
 }
 
-$(async function() {
+$(function() {
   const bot = new MelissaBot();
   const $chat = $('.chat');
   const $input = $('.input-field');
   const $sendBtn = $('.send-btn');
   const $busy = $('.busy');
   const $resetBtn = $('.reset-btn');
-  const $progressContainer = $('#ai-progress-container');
-  const $progressBar = $('#ai-progress-bar');
-  const $progressPct = $('#ai-progress-pct');
-  const $progressLabel = $('#ai-progress-label');
 
-  // Load chat history from sessionStorage
+  // Load chat history
   bot.loadHistory();
+  bot.updateStatus('online', 'Online');
 
   // Helper to append message to chat window
   const updateChat = function(party, message, messageId = null) {
@@ -395,62 +311,20 @@ $(async function() {
     try {
       const audio = new Audio('chat.mp3');
       audio.volume = 0.5;
-      audio.play().catch(e => console.log('Audio playback info:', e));
+      audio.play().catch(e => console.log('Audio autoplay prevented:', e));
     } catch (e) {
-      // Audio autoplay may be prevented before user interaction
+      // Audio playback failsafe
     }
   };
 
-  // Progress update callback
-  const handleProgress = function(report) {
-    $progressContainer.show();
-    const pct = Math.round((report.progress || 0) * 100);
-    $progressBar.css('width', pct + '%');
-    $progressPct.text(pct + '%');
-
-    // Clean up text for user friendly display
-    let labelText = report.text || 'Loading weights...';
-    if (labelText.length > 60) {
-      labelText = labelText.substring(0, 57) + '...';
-    }
-    $progressLabel.text(labelText);
-
-    if (report.progress >= 1) {
-      setTimeout(() => {
-        $progressContainer.fadeOut(600);
-      }, 1500);
-    }
-  };
-
-  // Initialize WebLLM model
-  const startLoadingModel = async function(modelId) {
-    try {
-      $progressContainer.show();
-      $progressLabel.text("Connecting to WebGPU & loading model...");
-      $progressBar.css('width', '5%');
-      $progressPct.text('5%');
-
-      await bot.loadModel(modelId, handleProgress);
-      console.log('Model ready for offline inference!');
-    } catch (err) {
-      console.error("Initialization error:", err);
-      $progressLabel.text("Failed to load model: " + err.message);
-      $progressContainer.show();
-      updateChat('other', `⚠️ Could not initialize offline model (${err.message}). If using Chrome, ensure WebGPU and hardware acceleration are enabled in settings.`);
-    }
-  };
-
-  // Check WebGPU compatibility on launch
-  const gpuCheck = await bot.checkWebGPU();
-  if (!gpuCheck.supported) {
-    bot.updateStatus('offline', 'WebGPU Required');
-    $progressContainer.show();
-    $progressLabel.text("WebGPU not detected in this browser");
-    $progressPct.text("N/A");
-    updateChat('other', `⚠️ **WebGPU is required** for Melissa to run offline inside your browser. Please open this app in Google Chrome, Microsoft Edge, or Brave on a computer with graphics acceleration enabled!`);
-  } else {
-    // Start loading the default fast model (Qwen2.5 0.5B ~350MB)
-    startLoadingModel(DEFAULT_MODEL);
+  // Helper to escape HTML inside streaming bubble
+  function escapeHtml(string) {
+    return String(string)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   let isGenerating = false;
@@ -461,15 +335,6 @@ $(async function() {
     const text = $input.val().trim();
     if (!text) return;
 
-    if (!bot.isModelReady) {
-      if (bot.isModelLoading) {
-        updateChat('other', "Melissa's offline AI is still loading. Please wait a moment! ⏳");
-      } else {
-        updateChat('other', "Melissa's offline AI is not ready. Please make sure WebGPU is enabled in your browser.");
-      }
-      return;
-    }
-
     $input.val('');
     $input.css('height', 'auto');
     isGenerating = true;
@@ -479,19 +344,19 @@ $(async function() {
     updateChat('you', text);
     bot.addToHistory('user', text);
 
-    // Create a streaming response bubble
+    // Create streaming bubble
     const bubbleId = 'msg-' + Date.now();
     updateChat('other', '<span class="typing-cursor"></span>', bubbleId);
     const $bubble = $('#' + bubbleId);
     const $textElem = $bubble.find('.text');
 
-    $busy.text("Melissa is thinking...");
+    $busy.text("Melissa is typing...");
     $busy.show();
 
     try {
       let hasReceivedFirstChunk = false;
 
-      const reply = await bot.respondStream(text, (currentText, isDone) => {
+      const reply = await bot.sendMessageStream(text, (currentText, isDone) => {
         if (!hasReceivedFirstChunk && currentText) {
           hasReceivedFirstChunk = true;
           $busy.hide();
@@ -513,10 +378,7 @@ $(async function() {
     } catch (err) {
       console.error('Chat error:', err);
       $busy.hide();
-      let errorMsg = err.message || "Oops! I encountered an error. Please try again.";
-      if (errorMsg.includes('mapAsync') || errorMsg.includes('GPUBuffer') || errorMsg.includes('unmapped')) {
-        errorMsg = "Oops! My GPU buffer had a temporary glitch. Please try sending your message again! 🔄";
-      }
+      const errorMsg = "Oops! My brain had a hiccup connecting to the servers. Mind trying again in a sec? 😊";
       $textElem.text(errorMsg);
     } finally {
       isGenerating = false;
@@ -524,16 +386,6 @@ $(async function() {
       $input.focus();
     }
   };
-
-  // Helper to escape HTML inside streaming bubble
-  function escapeHtml(string) {
-    return String(string)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
 
   // Send button click
   $sendBtn.on('click', submitChat);
@@ -550,7 +402,7 @@ $(async function() {
   $resetBtn.on('click', function() {
     bot.clearHistory();
     $chat.empty();
-    const welcome = "Hi there, I'm Melissa! How can I help you today? (I run 100% offline!)";
+    const welcome = "Hi there, I'm Melissa! What's up? Ready to chat! 😄";
     updateChat('other', welcome);
     bot.addToHistory('assistant', welcome);
   });
@@ -561,9 +413,9 @@ $(async function() {
     this.style.height = Math.min(this.scrollHeight, 100) + 'px';
   });
 
-  // Initialize UI with existing chat history or greeting
+  // Initialize UI with existing chat history or welcoming greeting
   if (bot.chatHistory.length === 0) {
-    const welcome = "Hi there, I'm Melissa! How can I help you today? I'm running 100% offline in your browser!";
+    const welcome = "Hi there, I'm Melissa! How can I help you today? Ready to chat! ✨";
     updateChat('other', welcome);
     bot.addToHistory('assistant', welcome);
   } else {
@@ -572,6 +424,6 @@ $(async function() {
     });
   }
 
-  // Expose for console debugging if needed
+  // Expose bot for debugging
   window.melissaBot = bot;
 });

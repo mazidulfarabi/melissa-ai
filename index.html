@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
       <meta charset="UTF-8">
-	    <title>Melissa - Friend.AI (Offline In-Browser)</title>
-	    <meta name="description" content="Melissa is your AI friend who runs 100% offline in your browser powered by WebGPU."/>
-	    <meta name="keywords" content="Melissa,Melissa AI,AI,chat,friend,WebLLM,WebGPU,offline AI,Thynkzone"/>
+	    <title>Melissa - Friend.AI</title>
+	    <meta name="description" content="Melissa is your cyber-girl AI friend powered by Cloudflare Workers AI."/>
+	    <meta name="keywords" content="Melissa,Melissa AI,AI,chat,friend,Cloudflare,Workers AI,Thynkzone"/>
 	    <meta name="author" content="Md. Mazidul Haque Farabi | Thynkzone"/>
       <link rel="preload" href="stylesheet.css" as="style">
       <link rel="stylesheet" href="stylesheet.css">
@@ -24,9 +24,9 @@
 					<img src="melissa.jpg" alt="Melissa" class="avatar">
 					<div class="contact-details">
 						<div class="contact-name">Melissa</div>
-						<div class="contact-status loading">
-							<span class="online-dot loading"></span>
-							<span class="status-text">Initializing AI...</span>
+						<div class="contact-status">
+							<span class="online-dot"></span>
+							<span class="status-text">Online</span>
 						</div>
 					</div>
 				</div>
@@ -38,18 +38,6 @@
 					</svg>
 				</button>
 			</div>
-		</div>
-
-		<!-- Offline AI Progress Bar -->
-		<div id="ai-progress-container" class="ai-progress-container" style="display: none;">
-			<div class="ai-progress-header">
-				<span id="ai-progress-label" class="ai-progress-label">Downloading offline AI brain...</span>
-				<span id="ai-progress-pct" class="ai-progress-pct">0%</span>
-			</div>
-			<div class="ai-progress-track">
-				<div id="ai-progress-bar" class="ai-progress-bar"></div>
-			</div>
-			<div class="ai-progress-sub">Weights are saved in browser cache. Subsequent visits are instant and 100% offline.</div>
 		</div>
 
 		<!-- Chat Area -->
@@ -67,6 +55,6 @@
 		</div>
 	</div>
 
-<script type="module" src="jscript.js"></script>
+<script src="jscript.js"></script>
 </body>
 </html>

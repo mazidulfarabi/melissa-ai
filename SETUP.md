@@ -1,90 +1,85 @@
-# Melissa AI - Offline In-Browser Setup Guide 🤖
+# Melissa AI - Setup & Deployment Guide 🤖🚀
 
-## Overview
-Melissa AI now runs **100% inside your web browser offline** using **WebLLM and WebGPU**. 
-
-* **No API keys** required
-* **Zero server costs**
-* **No rate limits**
-* **Full privacy** (inference runs locally on your computer/device)
+This guide explains how Melissa AI is deployed and how Netlify (`.netlify.app`) works in tandem with Cloudflare Workers AI.
 
 ---
 
-## Quick Start (Run Locally)
+## ⚡ The Mechanism: Netlify + Cloudflare Workers AI
 
-Because modern web browsers restrict WebGPU and ES Modules when opening files directly (`file:///`), Melissa must be served over `http://` or `https://`.
+Previously, Melissa relied on OpenRouter which hit daily rate limits and required external API keys. Later, an offline WebLLM approach was tried, but it required a 350MB download and failed on browsers without WebGPU.
 
-### Method 1: Using Python (Recommended)
-If you have Python installed:
+The new system gives you the best of all worlds:
+1. **Netlify Frontend (`.netlify.app`)**: Fast global static CDN delivery of your HTML, CSS, JavaScript, and audio.
+2. **Netlify Edge Rewrite (Proxy)**: Requests to `/api/chat` are transparently forwarded behind the scenes to Cloudflare without exposing the `.workers.dev` domain to the client.
+3. **Cloudflare Workers AI Edge Inference**: Cloudflare runs `@cf/meta/llama-3.1-8b-instruct-fp8` directly on its GPU network without needing third-party API keys or rate-limited providers.
+
+---
+
+## 🚀 Step-by-Step Deployment
+
+### Step 1: Deploy Cloudflare Worker (Backend)
+
+The worker is located in `melissa-ai/worker.js` with `melissa-ai/wrangler.jsonc`.
+
+To deploy or update:
 ```bash
-cd c:\melissa-ai
-python -m http.server 8000
+cd melissa-ai
+npx wrangler deploy --config ./wrangler.jsonc
 ```
-Open your browser and navigate to:
+This produces your active worker endpoint:
+`https://melissa-ai.anmone-gaming.workers.dev`
+
+---
+
+### Step 2: Deploy to Netlify (Frontend)
+
+1. Connect your repository to Netlify (or drag and drop the `melissa-ai` folder in the Netlify dashboard).
+2. Set the **Publish directory** to `.` (the folder containing `index.html`).
+3. No environment variables are required!
+4. Netlify will read `netlify.toml`:
+   ```toml
+   [[redirects]]
+     from = "/api/*"
+     to = "https://melissa-ai.anmone-gaming.workers.dev/api/:splat"
+     status = 200
+     force = true
+   ```
+5. Click **Deploy Site**.
+
+Your bot is now live at `https://<your-app>.netlify.app`!
+
+---
+
+## 🧪 Testing Endpoints
+
+### 1. Test Cloudflare Worker Health Check
+```bash
+curl https://melissa-ai.anmone-gaming.workers.dev/api/health
 ```
-http://localhost:8000
+Expected response:
+```json
+{
+  "status": "healthy",
+  "service": "Melissa AI",
+  "provider": "Cloudflare Workers AI",
+  "models": ["@cf/meta/llama-3.1-8b-instruct-fp8", ...]
+}
 ```
 
-### Method 2: Using Node.js / npx
-If you have Node.js installed:
+### 2. Test Chat Query
 ```bash
-cd c:\melissa-ai
+curl -X POST https://melissa-ai.anmone-gaming.workers.dev/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "hey melissa! What are you doing?"}'
+```
+
+---
+
+## 💻 Running Locally
+
+To test locally:
+```bash
+cd melissa-ai
 npx serve .
 ```
-
-### Method 3: VS Code / Live Server
-If you use VS Code, install the **Live Server** extension, right-click `index.html`, and click **"Open with Live Server"**.
-
----
-
-## Deploying to the Web
-
-Because Melissa is completely client-side, deployment requires **no API keys** and **no backend configuration**:
-
-### Deploy to Netlify
-1. Connect your repository to [Netlify](https://netlify.com/).
-2. Keep the publish directory as `.` (root).
-3. Click **Deploy**. No environment variables are required!
-
-### Deploy to GitHub Pages
-1. Push your repository to GitHub.
-2. In your repository settings, navigate to **Pages**.
-3. Set Source to the `main` branch root (`/`).
-4. Save and your site will be live!
-
----
-
-## WebGPU Requirements & Troubleshooting
-
-Melissa uses WebGPU for hardware acceleration directly on your graphics card or chip.
-
-### Supported Browsers:
-- **Google Chrome** (version 113 or higher)
-- **Microsoft Edge** (version 113 or higher)
-- **Brave Browser**
-- **Firefox Nightly** (requires `dom.webgpu.enabled` set to `true` in `about:config`)
-
-### Enabling WebGPU in Chrome / Edge (If not enabled by default):
-1. In your address bar, go to:
-   ```
-   chrome://flags/#enable-unsafe-webgpu
-   ```
-2. Enable **"Unsafe WebGPU"** or ensure **"Hardware Acceleration"** is turned on:
-   * Go to Chrome Settings > System > Turn on **"Use graphics acceleration when available"**.
-3. Restart your browser.
-
----
-
-## Offline AI Model
-Melissa is powered out-of-the-box by **Qwen2.5 0.5B Instruct** (`Qwen2.5-0.5B-Instruct-q4f32_1-MLC`):
-* **Size**: ~350 MB download
-* **Best for**: Instant startup, natural personality with zero repetition loops, and minimal GPU/RAM overhead.
-* **Zero Configuration**: Melissa loads the optimized model automatically without needing user configuration.
-
----
-
-## How First-Time Download Works
-
-1. On your very first visit, Melissa will display a sleek progress bar as the model weights download from Hugging Face into your browser's local CacheStorage / IndexedDB.
-2. Once the download reaches 100%, Melissa's status turns **Online**.
-3. On all future visits, Melissa loads in **under 2 seconds** and works even if your WiFi is completely disconnected!
+Visit `http://localhost:3000`. The frontend will connect to Melissa with instant greetings and streaming AI responses!

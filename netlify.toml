@@ -1,15 +1,16 @@
 [build]
-  functions = "functions"
   publish = "."
-  command = "cd functions && npm install"
+  functions = "functions"
 
+# Reverse Proxy: routes all /api/* requests to the Cloudflare Workers AI backend
+# Status 200 means Netlify serves it under your-site.netlify.app domain transparently!
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  to = "https://melissa-ai.anmone-gaming.workers.dev/api/:splat"
   status = 200
+  force = true
 
-[functions]
-  directory = "functions"
-
-[build.environment]
-  NODE_VERSION = "18" 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"

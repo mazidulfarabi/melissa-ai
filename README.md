@@ -1,103 +1,114 @@
-# Melissa AI - Friend.AI 🤖 (Offline In-Browser AI)
+# Melissa AI 🤖✨
 
-A modern, intelligent chatbot powered by **WebLLM and WebGPU** that runs **100% inside your browser offline**. No API keys, no server costs, no rate limits, and absolute privacy.
-
-## ✨ Features
-
-- **🌐 100% Offline & In-Browser**: Powered by WebLLM via WebGPU. Once downloaded, Melissa works completely offline without an internet connection!
-- **⚡ Zero API Keys & Zero Cost**: No accounts, no credit cards, no OpenRouter or OpenAI keys needed.
-- **🚀 Zero Rate Limits**: Chat endlessly without getting 429 errors or waiting for daily resets.
-- **🪶 Ultra-Lightweight & Fast Model**: Powered by **Qwen2.5 0.5B** (~350MB download), the highest-rated sub-1B in-browser model for crisp, intelligent, and snappy conversations without repetition loops.
-- **🌊 Real-time Token Streaming**: Responses stream token-by-token with a sleek live typing cursor.
-- **🔒 Complete Privacy**: All inference runs on your device's GPU/hardware. Your chats never leave your browser.
-- **💾 Automatic Caching**: Model weights are stored in browser CacheStorage/IndexedDB. Subsequent visits load in 1–2 seconds!
-- **🎯 Instant Local Fast-Path**: Common greetings (hi, hello, time, date) respond instantly (0ms) to save battery and GPU cycles.
-- **🎨 Modern iOS-Style Chat UI**: Clean chat bubbles, sound effects, dynamic status indicators, and mobile-responsive layout.
-- **🔊 Audio Feedback**: Sound effects for message notifications (`chat.mp3`).
-- **🔄 Reset Functionality**: Clear chat button to start fresh conversations anytime.
+A friendly, modern cyber-girl AI friend powered by **Cloudflare Workers AI** and hosted seamlessly on **Netlify** with real-time streaming, zero API keys, and zero rate limits.
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Key Highlights
 
-### Running Locally
-
-Because Melissa runs client-side ES modules and WebGPU, she needs to be served over `http://` or `https://` (not `file://`):
-
-1. **Clone this repository**:
-   ```bash
-   git clone https://github.com/your-username/melissa-ai.git
-   cd melissa-ai
-   ```
-
-2. **Start a local web server**:
-   * With Python:
-     ```bash
-     python -m http.server 8000
-     ```
-   * Or with Node / npx:
-     ```bash
-     npx serve .
-     ```
-
-3. **Open in browser**:
-   Navigate to `http://localhost:8000` in **Google Chrome**, **Microsoft Edge**, or **Brave** (browsers with WebGPU support).
+- **⚡ Cloudflare Workers AI Edge Inference**: Powered by `@cf/meta/llama-3.1-8b-instruct-fp8` running on Cloudflare GPUs globally.
+- **🌐 Netlify Custom & `.netlify.app` Domain**: Fully hosted and accessible on Netlify. Netlify acts as a transparent reverse proxy (Status 200 Rewrite) so users only see your `.netlify.app` domain—no `.workers.dev` exposed in client URLs.
+- **🔑 Zero API Keys Required**: No OpenRouter keys, no OpenAI billing, no secret key leaks.
+- **🚫 Zero Rate Limits**: Free from 429 quota errors and daily model caps (`free-models-per-day`).
+- **📱 Universal Device Support**: Runs on all browsers (Mobile Safari, iOS Chrome, Android, Desktop) without needing 350MB WebGPU model downloads.
+- **🌊 Live Token Streaming**: Responses stream token-by-token with an animated typing cursor.
+- **🎯 0ms Fast-Path**: Instant replies for basic greetings and pleasantries (hi, hello, time, date) to maximize snappiness.
+- **🎨 iOS-Style UI**: Sleek chat bubbles, sound effects (`chat.mp3`), auto-resizing input, and clear history controls.
 
 ---
 
-### Deployment
+## 🏗️ Architecture: How Netlify + Cloudflare Work Together
 
-Deploying Melissa is simpler than ever because she is a pure static web app. You can deploy to any static host:
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        USER (Browser)                                  │
+│            Visits: https://your-melissa.netlify.app                    │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                    Requests /api/chat (POST)
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                       NETLIFY EDGE PROXY                               │
+│       netlify.toml: [[redirects]] from="/api/*" status=200             │
+│       Proxies transparently to Cloudflare Worker behind the scenes      │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+                 Forwarded to Cloudflare Edge Worker
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    CLOUDFLARE WORKER BACKEND                           │
+│          https://melissa-ai.anmone-gaming.workers.dev                  │
+│                                                                        │
+│   • CORS Enabled (Access-Control-Allow-Origin: *)                      │
+│   • Melissa Personality System Prompt                                  │
+│   • Native Workers AI Binding (`env.AI`)                               │
+│   • Model: @cf/meta/llama-3.1-8b-instruct-fp8                          │
+│   • Real-time SSE Token Streaming                                      │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-- **Netlify**: Drag and drop or connect repo (no environment variables needed!).
-- **GitHub Pages**: Turn on GitHub Pages under repository settings.
-- **Vercel / Cloudflare Pages**: Connect the repository and click Deploy.
+### Why this solves the `.workers.dev` problem:
+When deploying to Cloudflare Workers, Cloudflare defaults to a `*.workers.dev` URL. By using Netlify's **Status 200 Rewrite Proxy** in `netlify.toml`:
+1. Your frontend is served on your `.netlify.app` domain.
+2. The browser only calls `/api/chat` (same origin).
+3. Netlify proxies the request directly to the Cloudflare Worker.
+4. Visitors never see `.workers.dev`, and you avoid all cross-origin CORS limitations.
 
 ---
 
-## 🏗️ Project Structure
+## 📁 Project Structure
 
 ```
 melissa-ai/
-├── index.html              # Main chat interface with progress bar
-├── jscript.js              # In-browser WebLLM engine, streaming & chat state
-├── stylesheet.css          # iOS-style chat UI styling, status & progress styles
-├── chat.mp3                # Notification sound
-├── melissa.jpg             # Melissa's avatar image
-├── functions/              # (Legacy) Netlify functions kept for optional backend fallback
-├── netlify.toml           # Netlify static publishing configuration
-├── _headers               # Web headers for caching and audio assets
-├── SETUP.md               # Detailed setup & WebGPU guide
+├── index.html              # Chat interface
+├── jscript.js              # Streaming client with instant replies & session history
+├── stylesheet.css          # iOS-style chat styling, status & typing cursor
+├── chat.mp3                # Message notification sound
+├── melissa.jpg             # Melissa avatar
+├── worker.js               # Cloudflare Worker backend (Workers AI Llama 3)
+├── wrangler.jsonc          # Cloudflare Worker deployment configuration
+├── netlify.toml           # Netlify publish & Status 200 proxy configuration
+├── functions/              # Netlify functions bridge (fallback)
+│   └── chat.js             # Serverless bridge forwarding to Cloudflare Worker
+├── SETUP.md               # Quick setup & deployment guide
 └── README.md              # This file
 ```
 
 ---
 
-## 🛠️ Technology Stack
+## 🚀 Deployment Guide
 
-- **Inference Engine**: [WebLLM](https://github.com/mlc-ai/web-llm) (`@mlc-ai/web-llm`)
-- **Acceleration**: WebGPU (Hardware accelerated in browser)
-- **Frontend**: HTML5, CSS3, JavaScript (ES6 Modules + jQuery)
-- **Weight Storage**: Browser CacheStorage & IndexedDB
-- **Styling**: DM Sans font with glassmorphism & responsive layouts
-- **Audio**: HTML5 Audio API (`chat.mp3`)
+### 1. Cloudflare Worker (Backend)
+The backend Cloudflare Worker is already configured and deployed at:
+`https://melissa-ai.anmone-gaming.workers.dev`
 
----
+If you ever make changes to `worker.js`, redeploy with:
+```bash
+npx wrangler deploy --config ./wrangler.jsonc
+```
 
-## 🌐 Browser Requirements (WebGPU)
-
-Melissa requires a browser with WebGPU enabled:
-- **Google Chrome** 113+ (Windows, macOS, Linux, ChromeOS, Android)
-- **Microsoft Edge** 113+
-- **Brave Browser** (with hardware acceleration enabled)
-- **Firefox Nightly** (with `dom.webgpu.enabled` set to true)
-
-If WebGPU is not supported by your hardware or browser, Melissa will display a friendly message explaining how to enable it.
+### 2. Netlify (Frontend)
+1. Link your repository or upload the `melissa-ai` folder to **Netlify**.
+2. Build Settings:
+   - **Publish directory**: `.` (or root of melissa-ai)
+   - **Build command**: (leave empty)
+3. Deploy!
+4. Your site will immediately be live at `https://<your-site-name>.netlify.app`!
 
 ---
 
-## 🔒 Security & Privacy
+## 💻 Local Development
 
-* **100% Client-Side**: No user messages or chat logs are ever sent to an external server or API.
-* **Local Storage**: Chat history is kept in `sessionStorage` and cleared when you close your browser or click the reset button.
-* **No Telemetry**: No third-party trackers or data harvesting.
+Run any static local web server inside `melissa-ai/`:
+
+```bash
+# With Node / npx
+npx serve .
+
+# Or with Python
+python -m http.server 8000
+```
+
+Open `http://localhost:3000` or `http://localhost:8000` in your browser. Melissa will immediately connect and chat!

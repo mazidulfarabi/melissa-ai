@@ -1,0 +1,11 @@
+{
+  "name": "melissa-ai",
+  "version": "2.0.0",
+  "description": "Melissa AI - Smart cyber-girl chatbot powered by Cloudflare Workers AI",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  }
+}
